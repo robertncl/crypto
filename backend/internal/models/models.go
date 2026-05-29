@@ -59,8 +59,8 @@ const (
 type OrderType string
 
 const (
-	Limit  OrderType = "limit"
-	Market OrderType = "market"
+	TypeLimit  OrderType = "limit"
+	TypeMarket OrderType = "market"
 )
 
 // OrderStatus tracks an order's lifecycle.
