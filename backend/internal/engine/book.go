@@ -28,6 +28,10 @@ type restingOrder struct {
 
 	createdAt int64
 
+	// mo is the persisted order this resting order mirrors; the engine mutates
+	// and saves it as fills occur.
+	mo *models.Order
+
 	// bookkeeping for O(1) removal once resting
 	elem  *list.Element
 	level *priceLevel

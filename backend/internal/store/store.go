@@ -210,8 +210,18 @@ func (s *Store) ApplyPostings(txnID string, createdAt int64, postings []Posting)
 		return err
 	}
 	defer tx.Rollback()
+	if err := applyPostingsTx(tx, txnID, createdAt, postings); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
 
+// applyPostingsTx applies postings within an existing transaction.
+func applyPostingsTx(tx *sql.Tx, txnID string, createdAt int64, postings []Posting) error {
 	for _, p := range postings {
+		if p.DeltaAvailable.IsZero() && p.DeltaLocked.IsZero() {
+			continue
+		}
 		// Upsert the balance row then apply the delta.
 		if _, err := tx.Exec(
 			`INSERT INTO balances(user_id,asset,available,locked) VALUES(?,?,0,0)
@@ -240,7 +250,43 @@ func (s *Store) ApplyPostings(txnID string, createdAt int64, postings []Posting)
 			return err
 		}
 	}
-	return tx.Commit()
+	return nil
+}
+
+// CommitFill atomically records a single trade: it applies the settlement
+// postings, inserts the trade row, and persists the updated order rows — all in
+// one transaction so funds, the ledger, and order state never diverge. The
+// trade's ID is populated on success.
+func (s *Store) CommitFill(txnID string, createdAt int64, postings []Posting, trade *models.Trade, orders ...*models.Order) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err := applyPostingsTx(tx, txnID, createdAt, postings); err != nil {
+		return err
+	}
+	res, err := tx.Exec(
+		`INSERT INTO trades(market,price,quantity,quote_qty,taker_side,buy_order_id,sell_order_id,buy_user_id,sell_user_id,created_at)
+		 VALUES(?,?,?,?,?,?,?,?,?,?)`,
+		trade.Market, trade.Price.Raw(), trade.Quantity.Raw(), trade.QuoteQty.Raw(), trade.TakerSide,
+		trade.BuyOrderID, trade.SellOrderID, trade.BuyUserID, trade.SellUserID, trade.CreatedAt)
+	if err != nil {
+		return err
+	}
+	for _, o := range orders {
+		if _, err := tx.Exec(
+			`UPDATE orders SET filled=?, quote_filled=?, fee_paid=?, status=?, updated_at=? WHERE id=?`,
+			o.Filled.Raw(), o.QuoteFilled.Raw(), o.FeePaid.Raw(), o.Status, o.UpdatedAt, o.ID); err != nil {
+			return err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	trade.ID, _ = res.LastInsertId()
+	return nil
 }
 
 // ---------- Orders ----------
