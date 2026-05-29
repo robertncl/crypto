@@ -135,6 +135,11 @@ func writeDomainErr(w http.ResponseWriter, err error) {
 		writeErr(w, http.StatusNotFound, err.Error())
 	case errors.Is(err, engine.ErrNotOwner):
 		writeErr(w, http.StatusForbidden, "not your order")
+	case errors.Is(err, wallet.ErrKYCRequired):
+		writeErr(w, http.StatusForbidden, err.Error())
+	case errors.Is(err, wallet.ErrBelowMin), errors.Is(err, wallet.ErrInvalidAmount),
+		errors.Is(err, wallet.ErrInvalidAddress), errors.Is(err, wallet.ErrUnknownAsset):
+		writeErr(w, http.StatusBadRequest, err.Error())
 	case errors.Is(err, store.ErrNotFound):
 		writeErr(w, http.StatusNotFound, "not found")
 	default:
