@@ -22,6 +22,8 @@ var privateChannels = map[string]bool{
 	"orders":     true,
 	"balances":   true,
 	"walletTxns": true,
+	"perpOrders": true,
+	"positions":  true,
 }
 
 // Client is a single WebSocket connection.

@@ -13,32 +13,38 @@ import (
 	"time"
 
 	"cryptoex/internal/auth"
+	"cryptoex/internal/derivatives"
 	"cryptoex/internal/engine"
 	"cryptoex/internal/models"
 	"cryptoex/internal/num"
 	"cryptoex/internal/store"
 )
 
+// botLeverage is the leverage the bot uses on perp orders; low enough that its
+// near-mid positions are never at liquidation risk.
+const botLeverage = 5
+
 // seedPrices gives each market a believable starting mid; unknown markets fall
 // back to 100.
 var seedPrices = map[string]float64{
-	"BTC-USDT": 95000,
-	"ETH-USDT": 3500,
-	"SOL-USDT": 180,
-	"BNB-USDT": 600,
+	"BTC-USDT": 95000, "ETH-USDT": 3500, "SOL-USDT": 180, "BNB-USDT": 600,
+	"BTC-PERP": 95000, "ETH-PERP": 3500, "SOL-PERP": 180,
 }
 
 type Bot struct {
-	st      *store.Store
-	mgr     *engine.Manager
-	markets []models.Market
-	makerID int64
-	takerID int64
-	rng     *rand.Rand
+	st          *store.Store
+	mgr         *engine.Manager
+	markets     []models.Market
+	perpMgr     *derivatives.Manager
+	perpMarkets []models.PerpMarket
+	makerID     int64
+	takerID     int64
+	rng         *rand.Rand
 }
 
-func New(st *store.Store, mgr *engine.Manager, markets []models.Market) *Bot {
-	return &Bot{st: st, mgr: mgr, markets: markets, rng: rand.New(rand.NewSource(time.Now().UnixNano()))}
+func New(st *store.Store, mgr *engine.Manager, markets []models.Market, perpMgr *derivatives.Manager, perpMarkets []models.PerpMarket) *Bot {
+	return &Bot{st: st, mgr: mgr, markets: markets, perpMgr: perpMgr, perpMarkets: perpMarkets,
+		rng: rand.New(rand.NewSource(time.Now().UnixNano()))}
 }
 
 // Start provisions the bot accounts and launches a maker + taker loop per market.
@@ -62,7 +68,102 @@ func (b *Bot) Start(ctx context.Context) error {
 		}
 		go b.runMarket(ctx, m, mid)
 	}
+	for _, pm := range b.perpMarkets {
+		mid := seedPrices[pm.Symbol]
+		if mid == 0 {
+			mid = 100
+		}
+		go b.runPerpMarket(ctx, pm, mid)
+	}
 	return nil
+}
+
+// runPerpMarket quotes a two-sided ladder and crosses it on a perpetual market,
+// mirroring the spot maker/taker loop but placing leveraged perp orders.
+func (b *Bot) runPerpMarket(ctx context.Context, pm models.PerpMarket, mid float64) {
+	eng, ok := b.perpMgr.Get(pm.Symbol)
+	if !ok {
+		return
+	}
+	vol := 0.0011
+	makerTick := time.NewTicker(4 * time.Second)
+	takerTick := time.NewTicker(2800 * time.Millisecond)
+	defer makerTick.Stop()
+	defer takerTick.Stop()
+
+	var prevIDs []string
+	refresh := func() {
+		mid *= 1 + b.rng.NormFloat64()*vol
+		if mid <= 0 {
+			mid = 1
+		}
+		old := prevIDs
+		prevIDs = b.quotePerpLadder(eng, pm, mid)
+		for _, id := range old {
+			_ = eng.Cancel(id, b.makerID)
+		}
+	}
+	refresh()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-makerTick.C:
+			refresh()
+		case <-takerTick.C:
+			if b.rng.Float64() < 0.6 {
+				b.crossPerp(eng, pm, mid)
+			}
+		}
+	}
+}
+
+func (b *Bot) quotePerpLadder(eng *derivatives.Engine, pm models.PerpMarket, mid float64) []string {
+	const levels = 4
+	var ids []string
+	for i := 1; i <= levels; i++ {
+		spread := 0.0007 * float64(i)
+		notional := 1500 + b.rng.Float64()*4000
+		bidPrice := roundTo(mid*(1-spread), pm.PriceTick)
+		askPrice := roundTo(mid*(1+spread), pm.PriceTick)
+		if id := b.placePerpLimit(eng, pm, models.Buy, bidPrice, roundTo(notional/bidPrice, pm.QtyStep)); id != "" {
+			ids = append(ids, id)
+		}
+		if id := b.placePerpLimit(eng, pm, models.Sell, askPrice, roundTo(notional/askPrice, pm.QtyStep)); id != "" {
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
+func (b *Bot) placePerpLimit(eng *derivatives.Engine, pm models.PerpMarket, side models.Side, price, qty float64) string {
+	p := num.MustParse(ftoa(price))
+	q := num.MustParse(ftoa(qty))
+	if q.Sign() <= 0 || p.Sign() <= 0 || p.Mul(q).Lt(pm.MinNotional) {
+		return ""
+	}
+	out, err := eng.Place(&models.PerpOrder{
+		UserID: b.makerID, Side: side, Type: models.TypeLimit, Price: p, Quantity: q, Leverage: botLeverage,
+	})
+	if err != nil {
+		return ""
+	}
+	return out.ID
+}
+
+func (b *Bot) crossPerp(eng *derivatives.Engine, pm models.PerpMarket, mid float64) {
+	notional := 200 + b.rng.Float64()*1500
+	qty := num.MustParse(ftoa(roundTo(notional/mid, pm.QtyStep)))
+	if qty.Sign() <= 0 {
+		return
+	}
+	side := models.Buy
+	if b.rng.Float64() < 0.5 {
+		side = models.Sell
+	}
+	_, _ = eng.Place(&models.PerpOrder{
+		UserID: b.takerID, Side: side, Type: models.TypeMarket, Quantity: qty, Leverage: botLeverage,
+	})
 }
 
 func (b *Bot) ensureUser(email string) (*models.User, error) {

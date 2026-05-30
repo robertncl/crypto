@@ -13,6 +13,7 @@ import (
 
 	"cryptoex/internal/auth"
 	"cryptoex/internal/config"
+	"cryptoex/internal/derivatives"
 	"cryptoex/internal/engine"
 	"cryptoex/internal/market"
 	"cryptoex/internal/store"
@@ -29,6 +30,7 @@ type Server struct {
 	st     *store.Store
 	auth   *auth.Manager
 	mgr    *engine.Manager
+	perp   *derivatives.Manager
 	md     *market.Service
 	wallet *wallet.Service
 	hub    *ws.Hub
@@ -36,8 +38,8 @@ type Server struct {
 }
 
 func NewServer(cfg config.Config, st *store.Store, am *auth.Manager, mgr *engine.Manager,
-	md *market.Service, wal *wallet.Service, hub *ws.Hub) *Server {
-	s := &Server{cfg: cfg, st: st, auth: am, mgr: mgr, md: md, wallet: wal, hub: hub}
+	perp *derivatives.Manager, md *market.Service, wal *wallet.Service, hub *ws.Hub) *Server {
+	s := &Server{cfg: cfg, st: st, auth: am, mgr: mgr, perp: perp, md: md, wallet: wal, hub: hub}
 	s.Router = s.routes()
 	return s
 }
@@ -66,6 +68,13 @@ func (s *Server) routes() http.Handler {
 		r.Get("/markets/{symbol}/trades", s.handleMarketTrades)
 		r.Get("/markets/{symbol}/candles", s.handleCandles)
 
+		// Public derivatives market data. Trades/candles/ticker reuse the spot
+		// endpoints above (the trade tape is shared, keyed by symbol).
+		r.Get("/perp/markets", s.handlePerpMarkets)
+		r.Get("/perp/markets/{symbol}", s.handlePerpMarket)
+		r.Get("/perp/markets/{symbol}/depth", s.handlePerpDepth)
+		r.Get("/perp/markets/{symbol}/funding", s.handlePerpFunding)
+
 		// Authenticated.
 		r.Group(func(r chi.Router) {
 			r.Use(s.auth.Middleware)
@@ -81,6 +90,14 @@ func (s *Server) routes() http.Handler {
 			r.Post("/wallet/deposit", s.handleDeposit)
 			r.Post("/wallet/withdraw", s.handleWithdraw)
 			r.Get("/wallet/transactions", s.handleWalletTxns)
+
+			// Derivatives trading.
+			r.Post("/perp/orders", s.handlePlacePerpOrder)
+			r.Delete("/perp/orders/{id}", s.handleCancelPerpOrder)
+			r.Get("/perp/orders", s.handleOpenPerpOrders)
+			r.Get("/perp/orders/history", s.handlePerpOrderHistory)
+			r.Get("/perp/positions", s.handlePositions)
+			r.Post("/perp/positions/{symbol}/close", s.handleClosePosition)
 		})
 	})
 
@@ -137,6 +154,15 @@ func writeDomainErr(w http.ResponseWriter, err error) {
 	case errors.Is(err, engine.ErrOrderNotFound):
 		writeErr(w, http.StatusNotFound, err.Error())
 	case errors.Is(err, engine.ErrNotOwner):
+		writeErr(w, http.StatusForbidden, "not your order")
+	case errors.Is(err, derivatives.ErrBadOrder), errors.Is(err, derivatives.ErrReduceOnly),
+		errors.Is(err, derivatives.ErrNoLiquidity):
+		writeErr(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, derivatives.ErrMarketHalted):
+		writeErr(w, http.StatusConflict, err.Error())
+	case errors.Is(err, derivatives.ErrOrderNotFound):
+		writeErr(w, http.StatusNotFound, err.Error())
+	case errors.Is(err, derivatives.ErrNotOwner):
 		writeErr(w, http.StatusForbidden, "not your order")
 	case errors.Is(err, wallet.ErrKYCRequired):
 		writeErr(w, http.StatusForbidden, err.Error())

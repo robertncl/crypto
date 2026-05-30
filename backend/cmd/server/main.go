@@ -18,6 +18,7 @@ import (
 	"cryptoex/internal/bot"
 	"cryptoex/internal/config"
 	"cryptoex/internal/db"
+	"cryptoex/internal/derivatives"
 	"cryptoex/internal/engine"
 	"cryptoex/internal/market"
 	"cryptoex/internal/store"
@@ -41,6 +42,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("load markets: %v", err)
 	}
+	perpMarkets, err := st.ListPerpMarkets()
+	if err != nil {
+		log.Fatalf("load perp markets: %v", err)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -48,26 +53,33 @@ func main() {
 	hub := ws.NewHub()
 	md := market.NewService(st, hub)
 	md.Init(markets)
-	go md.Start(ctx, markets)
 
 	mgr := engine.NewManager(st, md, hub)
 	if err := mgr.Init(markets); err != nil {
 		log.Fatalf("init engines: %v", err)
 	}
 
+	perpMgr := derivatives.NewManager(st, md, hub, int64(cfg.PerpFunding))
+	if err := perpMgr.Init(perpMarkets); err != nil {
+		log.Fatalf("init perp engines: %v", err)
+	}
+
+	go md.Start(ctx, markets)
+	go perpMgr.Start(ctx)
+
 	walletSvc := wallet.NewService(st, hub)
 	authMgr := auth.NewManager(cfg.JWTSecret, cfg.JWTTTLHours)
 
 	if cfg.EnableBot {
-		b := bot.New(st, mgr, markets)
+		b := bot.New(st, mgr, markets, perpMgr, perpMarkets)
 		if err := b.Start(ctx); err != nil {
 			log.Printf("bot start failed (continuing without it): %v", err)
 		} else {
-			log.Printf("seed market-maker bot running across %d markets", len(markets))
+			log.Printf("seed market-maker bot running across %d spot + %d perp markets", len(markets), len(perpMarkets))
 		}
 	}
 
-	srv := api.NewServer(cfg, st, authMgr, mgr, md, walletSvc, hub)
+	srv := api.NewServer(cfg, st, authMgr, mgr, perpMgr, md, walletSvc, hub)
 	httpServer := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           srv.Router,
