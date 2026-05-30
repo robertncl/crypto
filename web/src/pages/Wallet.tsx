@@ -1,0 +1,249 @@
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { api, ApiError } from "../api/client";
+import type { Asset, Ticker, WalletAddress, WalletTxn } from "../api/types";
+import { useAuth } from "../state/auth";
+import { useBalances } from "../hooks/useBalances";
+import { useChannel } from "../hooks/useStream";
+import { fmt, fmtUsd, shortId, timeAgo, toNum, trimDecimal } from "../utils/format";
+
+export function Wallet() {
+  const { user, refresh } = useAuth();
+  const { get, reload } = useBalances();
+  const [assets, setAssets] = useState<Asset[]>([]);
+  const [prices, setPrices] = useState<Record<string, number>>({});
+  const [txns, setTxns] = useState<WalletTxn[]>([]);
+
+  useEffect(() => {
+    api.assets().then(setAssets).catch(() => {});
+    api.tickers().then((all: Ticker[]) =>
+      setPrices(Object.fromEntries(all.map((t) => [t.market, toNum(t.last)]))),
+    ).catch(() => {});
+    if (user) api.walletTxns().then(setTxns).catch(() => {});
+  }, [user]);
+
+  useChannel<WalletTxn>(user ? "walletTxns" : null, (t) => {
+    setTxns((prev) => [t, ...prev.filter((x) => x.id !== t.id)].slice(0, 100));
+    reload();
+  });
+
+  const priceOf = (sym: string) => (sym === "USDT" ? 1 : prices[`${sym}-USDT`] ?? 0);
+
+  const portfolio = useMemo(() => {
+    return assets.reduce((sum, a) => {
+      const b = get(a.symbol);
+      return sum + (toNum(b.available) + toNum(b.locked)) * priceOf(a.symbol);
+    }, 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assets, get, prices]);
+
+  if (!user) {
+    return (
+      <div className="page">
+        <div className="card pad center">
+          <h2>Your wallet</h2>
+          <p className="muted">Log in to view balances, deposit and withdraw.</p>
+          <Link to="/login" className="btn btn--primary">Log in</Link>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="page page--wallet">
+      <div className="wallet-header card">
+        <div>
+          <div className="muted">Estimated Portfolio Value</div>
+          <div className="wallet-header__value">{fmtUsd(portfolio)}</div>
+        </div>
+        <div className="wallet-header__kyc">
+          {user.kycStatus === "verified" ? (
+            <span className="badge badge--ok">Identity Verified</span>
+          ) : (
+            <button
+              className="btn btn--primary"
+              onClick={async () => { await api.verifyKyc(); await refresh(); }}
+            >
+              Verify identity
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="wallet-grid">
+        <section className="card">
+          <h3 className="card__title">Balances</h3>
+          <table className="dtable">
+            <thead>
+              <tr><th>Asset</th><th className="r">Available</th><th className="r">In Order</th><th className="r">Value</th></tr>
+            </thead>
+            <tbody>
+              {assets.map((a) => {
+                const b = get(a.symbol);
+                const value = (toNum(b.available) + toNum(b.locked)) * priceOf(a.symbol);
+                return (
+                  <tr key={a.symbol}>
+                    <td className="paircell">
+                      <span className="paircell__icon" aria-hidden>{a.symbol[0]}</span>
+                      <span><strong>{a.symbol}</strong> <span className="muted">{a.name}</span></span>
+                    </td>
+                    <td className="r mono">{fmt(b.available, 6)}</td>
+                    <td className="r mono muted">{fmt(b.locked, 6)}</td>
+                    <td className="r mono">{fmtUsd(value)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </section>
+
+        <DepositCard assets={assets} />
+        <WithdrawCard assets={assets} kycOk={user.kycStatus === "verified"} onDone={reload} />
+
+        <section className="card wallet-txns">
+          <h3 className="card__title">Transaction History</h3>
+          {txns.length === 0 ? (
+            <div className="empty pad">No transactions yet</div>
+          ) : (
+            <table className="dtable">
+              <thead>
+                <tr><th>Time</th><th>Type</th><th>Asset</th><th className="r">Amount</th><th>Status</th><th>TxID</th></tr>
+              </thead>
+              <tbody>
+                {txns.map((t) => (
+                  <tr key={t.id}>
+                    <td className="muted">{timeAgo(t.createdAt)}</td>
+                    <td className={t.type === "deposit" ? "up" : "down"}>{t.type}</td>
+                    <td>{t.asset}</td>
+                    <td className="r mono">{fmt(t.amount, 6)}</td>
+                    <td>
+                      <span className={`status status--${t.status}`}>
+                        {t.status}{t.status !== "completed" && t.confirmations > 0 ? ` (${t.confirmations})` : ""}
+                      </span>
+                    </td>
+                    <td className="mono muted">{t.txid ? shortId(t.txid) : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function DepositCard({ assets }: { assets: Asset[] }) {
+  const [asset, setAsset] = useState("BTC");
+  const [addr, setAddr] = useState<WalletAddress | null>(null);
+  const [amount, setAmount] = useState("");
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    setAddr(null);
+    api.walletAddress(asset).then(setAddr).catch(() => {});
+  }, [asset]);
+
+  async function simulate(e: React.FormEvent) {
+    e.preventDefault();
+    setMsg("");
+    try {
+      await api.deposit(asset, amount || "0");
+      setMsg(`Incoming deposit of ${trimDecimal(amount)} ${asset} detected — confirming on-chain…`);
+      setAmount("");
+    } catch (err) {
+      setMsg(err instanceof ApiError ? err.message : "Deposit failed");
+    }
+  }
+
+  return (
+    <section className="card">
+      <h3 className="card__title">Deposit</h3>
+      <label className="field field--stack">
+        <span className="field__label">Asset</span>
+        <select value={asset} onChange={(e) => setAsset(e.target.value)}>
+          {assets.map((a) => <option key={a.symbol} value={a.symbol}>{a.symbol} — {a.name}</option>)}
+        </select>
+      </label>
+
+      <div className="depositaddr">
+        <span className="field__label">Your {addr?.network} deposit address</span>
+        <div className="depositaddr__row">
+          <code>{addr?.address ?? "…"}</code>
+          <button className="btn btn--mini" onClick={() => addr && navigator.clipboard?.writeText(addr.address)}>Copy</button>
+        </div>
+      </div>
+
+      <form className="form" onSubmit={simulate}>
+        <p className="muted small">This is a simulated custody demo. Enter an amount to mimic an inbound on-chain transfer; it will credit after a few confirmations.</p>
+        <label className="field">
+          <span className="field__label">Amount</span>
+          <span className="field__input">
+            <input inputMode="decimal" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <span className="field__suffix">{asset}</span>
+          </span>
+        </label>
+        <button className="btn btn--primary btn--block">Simulate deposit</button>
+        {msg && <div className="formmsg formmsg--ok">{msg}</div>}
+      </form>
+    </section>
+  );
+}
+
+function WithdrawCard({ assets, kycOk, onDone }: { assets: Asset[]; kycOk: boolean; onDone: () => void }) {
+  const [asset, setAsset] = useState("USDT");
+  const [address, setAddress] = useState("");
+  const [amount, setAmount] = useState("");
+  const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const meta = assets.find((a) => a.symbol === asset);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setMsg(null);
+    try {
+      await api.withdraw(asset, address, amount || "0");
+      setMsg({ kind: "ok", text: "Withdrawal submitted — broadcasting to the network." });
+      setAmount("");
+      setAddress("");
+      onDone();
+    } catch (err) {
+      setMsg({ kind: "err", text: err instanceof ApiError ? err.message : "Withdrawal failed" });
+    }
+  }
+
+  return (
+    <section className="card">
+      <h3 className="card__title">Withdraw</h3>
+      {!kycOk && <div className="formmsg formmsg--warn">Identity verification is required before withdrawing. Verify above.</div>}
+      <form className="form" onSubmit={submit}>
+        <label className="field field--stack">
+          <span className="field__label">Asset</span>
+          <select value={asset} onChange={(e) => setAsset(e.target.value)}>
+            {assets.map((a) => <option key={a.symbol} value={a.symbol}>{a.symbol} — {a.name}</option>)}
+          </select>
+        </label>
+        <label className="field field--stack">
+          <span className="field__label">Destination address</span>
+          <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder={`${meta?.network ?? ""} address`} />
+        </label>
+        <label className="field">
+          <span className="field__label">Amount</span>
+          <span className="field__input">
+            <input inputMode="decimal" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <span className="field__suffix">{asset}</span>
+          </span>
+        </label>
+        <div className="form__row muted">
+          <span>Network fee</span>
+          <span>{meta ? `${trimDecimal(meta.withdrawFee)} ${asset}` : "—"}</span>
+        </div>
+        <div className="form__row muted">
+          <span>Minimum</span>
+          <span>{meta ? `${trimDecimal(meta.minWithdraw)} ${asset}` : "—"}</span>
+        </div>
+        <button className="btn btn--block btn--sell" disabled={!kycOk}>Withdraw</button>
+        {msg && <div className={`formmsg ${msg.kind === "ok" ? "formmsg--ok" : "formmsg--err"}`}>{msg.text}</div>}
+      </form>
+    </section>
+  );
+}
