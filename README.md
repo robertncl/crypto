@@ -1,7 +1,7 @@
-# Nebula — Crypto Exchange & Custody (Spot MVP)
+# Nebula — Crypto Exchange & Custody (Spot + Derivatives MVP)
 
-A self-contained spot cryptocurrency exchange and custody platform. It implements the realistic core of an exchange — a
-price-time-priority **matching engine**, a double-entry **custody ledger**,
+A self-contained cryptocurrency exchange and custody platform. It implements the realistic core of an exchange — a
+price-time-priority **matching engine** (spot **and** perpetual futures), a double-entry **custody ledger**,
 **simulated wallet custody** (deposits/withdrawals), real-time **market data**,
 and a polished dark **trading terminal** UI.
 
@@ -13,11 +13,19 @@ and a polished dark **trading terminal** UI.
 
 ## Features
 
-**Trading**
+**Spot trading**
 - Limit & market orders (market buys are sized by quote budget)
 - In-memory price-time-priority order book with a single-writer matching engine per market
 - Maker/taker fees, partial fills, price-improvement refunds, self-trade prevention
 - Order cancellation with atomic fund release
+
+**Derivatives — perpetual futures**
+- Linear USDT-margined perps (BTC/ETH/SOL-PERP), indexed to the spot pair
+- Selectable leverage (up to 100×), isolated margin sourced from locked USDT
+- Netted one-way positions: open / increase / reduce / flip, reduce-only closes
+- Realized & unrealized PnL, mark price, liquidation price, margin ratio
+- Periodic **funding** (longs↔shorts via an insurance fund) and **mark-price liquidation**
+- Margin, PnL, and funding all flow through the same atomic double-entry ledger
 
 **Custody & accounts**
 - Double-entry ledger: every balance change is journaled; funds can never be created or lost by trading
@@ -53,8 +61,9 @@ backend/
     db/               SQLite open + schema + seed data
     store/            data access + atomic posting/fill primitives (double-entry)
     auth/             JWT + bcrypt + middleware
-    engine/           order book + matching engine + per-market actor
-    market/           tickers + candle aggregation
+    engine/           spot order book + matching engine + per-market actor
+    derivatives/      perp engine: positions, margin, funding, liquidation
+    market/           tickers + candle aggregation (shared by spot + perp)
     wallet/           simulated custody (addresses, deposits, withdrawals)
     ws/               WebSocket hub + client pumps
     bot/              seed market-maker
@@ -117,7 +126,10 @@ Open **http://localhost:8080**.
 2. **Trade** — go to a market (e.g. BTC-USDT). The bot is quoting both sides, so
    you can immediately place limit or market orders and watch them fill against
    live liquidity. Click an order-book row to set the price.
-3. **Wallet** — deposit BTC/ETH/etc. (simulated; it confirms after a few seconds),
+3. **Futures** — open a leveraged long/short on a PERP market, watch unrealized
+   PnL, mark price, funding, and the liquidation price update live, then close
+   with one click.
+4. **Wallet** — deposit BTC/ETH/etc. (simulated; it confirms after a few seconds),
    then **Verify identity** to unlock withdrawals.
 
 ---
@@ -130,9 +142,10 @@ Open **http://localhost:8080**.
 | `DB_PATH` | `exchange.db` | SQLite file path |
 | `JWT_SECRET` | `dev-insecure-secret-change-me` | Token signing secret (**set in prod**) |
 | `JWT_TTL_HOURS` | `72` | Access token lifetime |
-| `ENABLE_BOT` | `true` | Run the seed market-maker bot |
+| `ENABLE_BOT` | `true` | Run the seed market-maker bot (spot + perp) |
 | `CORS_ORIGIN` | `http://localhost:5173` | Allowed SPA origin |
 | `WEB_DIR` | `web/dist` | Built SPA directory to serve (empty to disable) |
+| `PERP_FUNDING_SEC` | `60` | Perp funding interval in seconds (demo-accelerated) |
 
 ---
 
@@ -151,7 +164,15 @@ GET  /api/orders | /api/orders/history | /api/trades          (auth)
 GET  /api/wallet/address?asset=BTC               (auth)
 POST /api/wallet/deposit | /api/wallet/withdraw  (auth)
 GET  /api/wallet/transactions                    (auth)
-WS   /ws?token=...   subscribe to ticker:/depth:/trades:/kline: + private orders/balances/walletTxns
+
+GET  /api/perp/markets | /api/perp/markets/{sym} | /{sym}/depth | /{sym}/funding
+POST /api/perp/orders   { market, side, type, price?, quantity, leverage, reduceOnly }  (auth)
+DELETE /api/perp/orders/{id}                      (auth)
+GET  /api/perp/orders | /api/perp/orders/history | /api/perp/positions   (auth)
+POST /api/perp/positions/{sym}/close             (auth)
+
+WS   /ws?token=...   public  ticker:/depth:/trades:/kline:/funding:
+                     private orders / perpOrders / positions / balances / walletTxns
 ```
 
 ---
@@ -172,6 +193,13 @@ WS   /ws?token=...   subscribe to ticker:/depth:/trades:/kline: + private orders
   deposits credit after a few simulated confirmations; withdrawals debit
   immediately and "broadcast" asynchronously. The external chain is modeled as
   funds entering/leaving the internal ledger.
+- **Derivatives margin = locked USDT.** A perp position's isolated margin is just
+  the user's locked balance, attributed to the position; PnL and funding settle
+  against an insurance fund. Because every fill creates equal-and-opposite
+  long/short deltas, aggregate position PnL nets to zero, so the fund only ever
+  absorbs liquidation shortfalls. The perp engine is single-writer per market —
+  matching, funding, and liquidation all run on one goroutine, so positions need
+  no locks.
 
 ## Tests
 

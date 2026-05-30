@@ -355,6 +355,7 @@ input, select { font-family: inherit; }
 }
 .search:focus { outline: none; border-color: var(--accent); }
 .dtable--markets td { padding-block: 11px; }
+.markets-subhead { font-size: 18px; margin: 26px 0 12px; display: flex; align-items: center; gap: 10px; }
 
 /* ============================================================
    Wallet page
