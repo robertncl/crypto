@@ -1,7 +1,6 @@
 # Nebula — Crypto Exchange & Custody (Spot MVP)
 
-A self-contained spot cryptocurrency exchange and custody platform, in the spirit
-of Bybit/Binance. It implements the realistic core of an exchange — a
+A self-contained spot cryptocurrency exchange and custody platform. It implements the realistic core of an exchange — a
 price-time-priority **matching engine**, a double-entry **custody ledger**,
 **simulated wallet custody** (deposits/withdrawals), real-time **market data**,
 and a polished dark **trading terminal** UI.
