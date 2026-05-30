@@ -7,13 +7,14 @@ export function Layout() {
 
   return (
     <div className="app">
+      <a href="#content" className="skip-link">Skip to content</a>
       <header className="topbar">
         <div className="topbar__brand">
           <Link to="/" className="logo">
             <span className="logo__mark" aria-hidden>◆</span>
             <span className="logo__name">Nebula</span>
           </Link>
-          <nav className="topnav">
+          <nav className="topnav" aria-label="Primary">
             <NavLink to="/markets">Markets</NavLink>
             <NavLink to="/trade/BTC-USDT">Spot</NavLink>
             <NavLink to="/futures/BTC-PERP">Futures</NavLink>
@@ -47,7 +48,7 @@ export function Layout() {
           )}
         </div>
       </header>
-      <main className="content">
+      <main className="content" id="content" tabIndex={-1}>
         <Outlet />
       </main>
     </div>

@@ -51,12 +51,12 @@ export function Markets() {
         <table className="dtable dtable--markets">
           <thead>
             <tr>
-              <th>Pair</th>
-              <th className="r">Last Price</th>
-              <th className="r">24h Change</th>
-              <th className="r">24h High</th>
-              <th className="r">24h Low</th>
-              <th className="r">24h Volume</th>
+              <th scope="col">Pair</th>
+              <th scope="col" className="r">Last Price</th>
+              <th scope="col" className="r">24h Change</th>
+              <th scope="col" className="r">24h High</th>
+              <th scope="col" className="r">24h Low</th>
+              <th scope="col" className="r">24h Volume</th>
               <th></th>
             </tr>
           </thead>
@@ -75,7 +75,13 @@ export function Markets() {
                   <td className="r mono muted">{fmt(t?.high24h ?? "0", 2)}</td>
                   <td className="r mono muted">{fmt(t?.low24h ?? "0", 2)}</td>
                   <td className="r mono muted">{fmtCompact(t?.quoteVol24h ?? "0")} {m.quote}</td>
-                  <td className="r"><button className="btn btn--mini btn--primary">Trade</button></td>
+                  <td className="r">
+                    <button
+                      className="btn btn--mini btn--primary"
+                      onClick={(e) => { e.stopPropagation(); navigate(`/trade/${m.symbol}`); }}
+                      aria-label={`Trade ${m.symbol}`}
+                    >Trade</button>
+                  </td>
                 </tr>
               );
             })}
@@ -91,11 +97,11 @@ export function Markets() {
             <table className="dtable dtable--markets">
               <thead>
                 <tr>
-                  <th>Contract</th>
-                  <th className="r">Last Price</th>
-                  <th className="r">24h Change</th>
-                  <th className="r">Index</th>
-                  <th className="r">Max Leverage</th>
+                  <th scope="col">Contract</th>
+                  <th scope="col" className="r">Last Price</th>
+                  <th scope="col" className="r">24h Change</th>
+                  <th scope="col" className="r">Index</th>
+                  <th scope="col" className="r">Max Leverage</th>
                   <th></th>
                 </tr>
               </thead>
@@ -113,7 +119,13 @@ export function Markets() {
                       <td className={`r ${up ? "up" : "down"}`}>{fmtPct(t?.changePct ?? "0")}</td>
                       <td className="r mono muted">{m.indexSymbol}</td>
                       <td className="r mono">{m.maxLeverage}×</td>
-                      <td className="r"><button className="btn btn--mini btn--primary">Trade</button></td>
+                      <td className="r">
+                        <button
+                          className="btn btn--mini btn--primary"
+                          onClick={(e) => { e.stopPropagation(); navigate(`/futures/${m.symbol}`); }}
+                          aria-label={`Trade ${m.symbol}`}
+                        >Trade</button>
+                      </td>
                     </tr>
                   );
                 })}

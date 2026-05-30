@@ -184,7 +184,7 @@ function DepositCard({ assets }: { assets: Asset[] }) {
           </span>
         </label>
         <button className="btn btn--primary btn--block">Simulate deposit</button>
-        {msg && <div className="formmsg formmsg--ok">{msg}</div>}
+        {msg && <div className="formmsg formmsg--ok" role="status">{msg}</div>}
       </form>
     </section>
   );
@@ -242,7 +242,7 @@ function WithdrawCard({ assets, kycOk, onDone }: { assets: Asset[]; kycOk: boole
           <span>{meta ? `${trimDecimal(meta.minWithdraw)} ${asset}` : "—"}</span>
         </div>
         <button className="btn btn--block btn--sell" disabled={!kycOk}>Withdraw</button>
-        {msg && <div className={`formmsg ${msg.kind === "ok" ? "formmsg--ok" : "formmsg--err"}`}>{msg.text}</div>}
+        {msg && <div className={`formmsg ${msg.kind === "ok" ? "formmsg--ok" : "formmsg--err"}`} role={msg.kind === "ok" ? "status" : "alert"}>{msg.text}</div>}
       </form>
     </section>
   );

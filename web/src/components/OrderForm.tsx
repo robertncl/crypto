@@ -145,7 +145,7 @@ export function OrderForm({ market, pickedPrice, lastPrice }: { market: Market; 
           <Link to="/login" className="btn btn--block btn--primary">Log in to trade</Link>
         )}
 
-        {msg && <div className={`formmsg ${msg.kind === "ok" ? "formmsg--ok" : "formmsg--err"}`}>{msg.text}</div>}
+        {msg && <div className={`formmsg ${msg.kind === "ok" ? "formmsg--ok" : "formmsg--err"}`} role={msg.kind === "ok" ? "status" : "alert"}>{msg.text}</div>}
         <div className="form__hint muted">Min order: {fmt(market.minNotional, 2)} {market.quote} · Tick {trimDecimal(market.priceTick)} · Step {trimDecimal(market.qtyStep)}</div>
       </form>
     </section>

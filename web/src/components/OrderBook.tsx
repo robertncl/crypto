@@ -59,7 +59,7 @@ export function OrderBook({ market, onPickPrice, fetchDepth }: {
 
         <div className="book__side book__side--asks scroll">
           {[...asks].reverse().map((r) => (
-            <button className="book__row" key={`a${r.price}`} onClick={() => onPickPrice(r.price)}>
+            <button className="book__row" key={`a${r.price}`} onClick={() => onPickPrice(r.price)} aria-label={`Use ask price ${fmt(r.price, 2)}`}>
               <span className="book__bar book__bar--ask" style={{ width: `${(r.cum / maxCum) * 100}%` }} />
               <span className="down">{fmt(r.price, 2)}</span>
               <span className="r">{fmt(r.qty, 5)}</span>
@@ -76,7 +76,7 @@ export function OrderBook({ market, onPickPrice, fetchDepth }: {
 
         <div className="book__side book__side--bids scroll">
           {bids.map((r) => (
-            <button className="book__row" key={`b${r.price}`} onClick={() => onPickPrice(r.price)}>
+            <button className="book__row" key={`b${r.price}`} onClick={() => onPickPrice(r.price)} aria-label={`Use bid price ${fmt(r.price, 2)}`}>
               <span className="book__bar book__bar--bid" style={{ width: `${(r.cum / maxCum) * 100}%` }} />
               <span className="up">{fmt(r.price, 2)}</span>
               <span className="r">{fmt(r.qty, 5)}</span>

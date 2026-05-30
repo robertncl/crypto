@@ -130,7 +130,7 @@ export function PerpOrderForm({ market, pickedPrice, lastPrice }: { market: Perp
           <Link to="/login" className="btn btn--block btn--primary">Log in to trade</Link>
         )}
 
-        {msg && <div className={`formmsg ${msg.kind === "ok" ? "formmsg--ok" : "formmsg--err"}`}>{msg.text}</div>}
+        {msg && <div className={`formmsg ${msg.kind === "ok" ? "formmsg--ok" : "formmsg--err"}`} role={msg.kind === "ok" ? "status" : "alert"}>{msg.text}</div>}
         <div className="form__hint muted">Isolated margin · Max {market.maxLeverage}× · MMR {fmt(toNum(market.mmr) * 100, 2)}%</div>
       </form>
     </section>

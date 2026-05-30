@@ -53,7 +53,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
           />
         </label>
 
-        {err && <div className="formmsg formmsg--err">{err}</div>}
+        {err && <div className="formmsg formmsg--err" role="alert">{err}</div>}
 
         <button className="btn btn--primary btn--block" disabled={busy}>
           {busy ? "Please wait…" : isRegister ? "Create account" : "Log in"}
