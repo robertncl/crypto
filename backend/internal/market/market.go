@@ -27,6 +27,7 @@ type Service struct {
 	candles  map[string]map[int64]*models.Candle // market -> intervalSec -> current bar
 	bestBid  map[string]num.Dec
 	bestAsk  map[string]num.Dec
+	extra    []string // non-spot symbols (e.g. perps) registered for live data
 }
 
 func NewService(st *store.Store, hub *ws.Hub) *Service {
@@ -54,21 +55,46 @@ func (s *Service) Init(markets []models.Market) {
 	}
 }
 
-// Start runs the periodic 24h ticker refresh until ctx is canceled.
+// Register sets up live ticker/candle state for an additional (non-spot) symbol
+// such as a perpetual market, so OnTrade and the refresh loop maintain it too.
+func (s *Service) Register(symbol string) {
+	s.mu.Lock()
+	if _, exists := s.tickers[symbol]; !exists {
+		s.tickers[symbol] = &models.Ticker{Market: symbol}
+		s.candles[symbol] = map[int64]*models.Candle{}
+		s.bestBid[symbol] = num.Zero
+		s.bestAsk[symbol] = num.Zero
+		s.extra = append(s.extra, symbol)
+	}
+	s.mu.Unlock()
+	s.refresh(symbol)
+}
+
+// Start runs the periodic 24h ticker refresh until ctx is canceled, covering
+// both the spot markets passed in and any registered extra symbols.
 func (s *Service) Start(ctx context.Context, markets []models.Market) {
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
+	publish := func(symbol string) {
+		s.refresh(symbol)
+		s.mu.RLock()
+		t := *s.tickers[symbol]
+		s.mu.RUnlock()
+		s.hub.Publish("ticker:"+symbol, t)
+	}
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
 			for _, m := range markets {
-				s.refresh(m.Symbol)
-				s.mu.RLock()
-				t := *s.tickers[m.Symbol]
-				s.mu.RUnlock()
-				s.hub.Publish("ticker:"+m.Symbol, t)
+				publish(m.Symbol)
+			}
+			s.mu.RLock()
+			extra := append([]string(nil), s.extra...)
+			s.mu.RUnlock()
+			for _, sym := range extra {
+				publish(sym)
 			}
 		}
 	}

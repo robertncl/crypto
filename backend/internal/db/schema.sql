@@ -114,3 +114,57 @@ CREATE TABLE IF NOT EXISTS wallet_txns (
     updated_at    INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_wtxn_user ON wallet_txns(user_id, created_at DESC);
+
+-- ===================== Derivatives (perpetual futures) =====================
+
+CREATE TABLE IF NOT EXISTS perp_markets (
+    symbol       TEXT PRIMARY KEY,          -- e.g. BTC-PERP
+    base         TEXT NOT NULL,
+    settle       TEXT NOT NULL,             -- margin/PnL currency (USDT)
+    index_symbol TEXT NOT NULL DEFAULT '',  -- spot market used as funding index
+    price_tick   INTEGER NOT NULL,
+    qty_step     INTEGER NOT NULL,
+    min_notional INTEGER NOT NULL,
+    maker_fee    INTEGER NOT NULL,
+    taker_fee    INTEGER NOT NULL,
+    max_leverage INTEGER NOT NULL DEFAULT 1,
+    mmr          INTEGER NOT NULL,          -- maintenance margin rate (scaled)
+    status       TEXT NOT NULL DEFAULT 'trading'
+);
+
+-- One netted (one-way) position per (user, market). size=0 means flat.
+CREATE TABLE IF NOT EXISTS positions (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      INTEGER NOT NULL,
+    market       TEXT NOT NULL,
+    side         TEXT NOT NULL DEFAULT 'flat',
+    size         INTEGER NOT NULL DEFAULT 0,
+    entry_price  INTEGER NOT NULL DEFAULT 0,
+    margin       INTEGER NOT NULL DEFAULT 0,
+    leverage     INTEGER NOT NULL DEFAULT 1,
+    realized_pnl INTEGER NOT NULL DEFAULT 0,
+    funding_paid INTEGER NOT NULL DEFAULT 0,
+    updated_at   INTEGER NOT NULL,
+    UNIQUE(user_id, market)
+);
+CREATE INDEX IF NOT EXISTS idx_positions_market ON positions(market);
+CREATE INDEX IF NOT EXISTS idx_positions_user   ON positions(user_id);
+
+CREATE TABLE IF NOT EXISTS perp_orders (
+    id          TEXT PRIMARY KEY,
+    user_id     INTEGER NOT NULL,
+    market      TEXT NOT NULL,
+    side        TEXT NOT NULL,
+    type        TEXT NOT NULL,
+    price       INTEGER NOT NULL DEFAULT 0,
+    quantity    INTEGER NOT NULL,
+    filled      INTEGER NOT NULL DEFAULT 0,
+    avg_price   INTEGER NOT NULL DEFAULT 0,
+    leverage    INTEGER NOT NULL DEFAULT 1,
+    reduce_only INTEGER NOT NULL DEFAULT 0,
+    status      TEXT NOT NULL,
+    created_at  INTEGER NOT NULL,
+    updated_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_porders_user   ON perp_orders(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_porders_market ON perp_orders(market, status);

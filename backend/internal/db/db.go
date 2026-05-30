@@ -95,7 +95,36 @@ func seed(conn *sql.DB) error {
 			return err
 		}
 	}
+
+	// Perpetual futures markets (linear, USDT-margined), indexed to the matching
+	// spot pair for funding.
+	perps := []seedPerp{
+		{"BTC", "0.1", "0.001", "5", "0.0002", "0.0006", 100, "0.005"},
+		{"ETH", "0.01", "0.01", "5", "0.0002", "0.0006", 100, "0.005"},
+		{"SOL", "0.001", "0.1", "5", "0.0002", "0.0006", 50, "0.01"},
+	}
+	for _, p := range perps {
+		symbol := p.base + "-PERP"
+		if _, err := conn.Exec(
+			`INSERT OR IGNORE INTO perp_markets(symbol,base,settle,index_symbol,price_tick,qty_step,min_notional,maker_fee,taker_fee,max_leverage,mmr,status)
+			 VALUES(?,?,?,?,?,?,?,?,?,?,?,'trading')`,
+			symbol, p.base, "USDT", p.base+"-USDT",
+			num.MustParse(p.priceTick).Raw(), num.MustParse(p.qtyStep).Raw(),
+			num.MustParse(p.minNotional).Raw(), num.MustParse(p.makerFee).Raw(),
+			num.MustParse(p.takerFee).Raw(), p.maxLev, num.MustParse(p.mmr).Raw(),
+		); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+type seedPerp struct {
+	base                            string
+	priceTick, qtyStep, minNotional string
+	makerFee, takerFee              string
+	maxLev                          int
+	mmr                             string
 }
 
 // InClause builds a "(?,?,...)" placeholder list and the matching args slice for
