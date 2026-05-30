@@ -44,19 +44,25 @@ prevents disasters:
   order can spike it momentarily.
 - **Index price** — the "true" underlying price, taken from the **spot** market
   (Nebula uses the matching spot pair, e.g. BTC-USDT, via the market service).
-- **Mark price** — the price used for **PnL and liquidation**. It's deliberately
-  *not* the raw last price, so a brief wick or a manipulative trade can't unfairly
-  liquidate people.
+- **Mark price** — the price used for **PnL and liquidation**. *Conceptually* it
+  should be a smoothed, manipulation-resistant price, so a brief wick or a single
+  manipulative trade can't unfairly liquidate people.
 
 Why does mark matter? Imagine your liquidation point is 49,250 and someone briefly
-pushes the *last* price there with one order before it snaps back. If liquidations
-used last price, you'd be wiped on noise. Using a smoother **mark** (anchored to
-the index) protects traders. Nebula derives mark from the perp's own price stream
-in `MarkPrice()`, with the spot **index** driving funding.
+pushes the price there with one order before it snaps back. If liquidations keyed
+off that noisy print, you'd be wiped unfairly. The *purpose* of a separate mark
+price is to prevent exactly this.
 
-> **In the real world**, the mark price is typically the index price plus a
-> decaying funding basis, and the index is a *median of several spot exchanges* to
-> resist manipulation. Same purpose, more inputs.
+**What Nebula's MVP actually does:** to keep things legible, `MarkPrice()` uses the
+perp's **own last trade price** as the mark, and the **spot index** (the matching
+spot pair's last price) drives funding. So in our version mark ≈ last — we get the
+*shape* of three prices and a funding tether without the smoothing math.
+
+> **In the real world**, the mark price is typically the **index** price (a
+> *median across several spot exchanges* to resist manipulation) plus a decaying
+> funding basis — explicitly **not** the perp's last trade. Swapping our simple
+> mark for an index-based one is a great exercise (see Chapter 13) and would make
+> liquidations robust to a thin or manipulated perp book.
 
 ---
 

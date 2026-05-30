@@ -11,6 +11,15 @@ and a polished dark **trading terminal** UI.
 
 ---
 
+## 📚 Learn how it works
+
+This repo doubles as a **teaching course**. [`docs/`](docs/README.md) is a 13-chapter
+guided tour that explains each component to engineers **new to crypto markets** —
+concept first (order books, custody, leverage, funding, liquidation…), then the
+real code that implements it. Start at **[docs/README.md](docs/README.md)**.
+
+---
+
 ## Features
 
 **Spot trading**
