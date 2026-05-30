@@ -24,6 +24,9 @@ This design assumes, until told otherwise:
   jurisdictions (incl. mainland China) are **geofenced**.
 - **Custody:** real custody is **build-with-vendors** (HSM + MPC), not pure
   in-house, at least initially.
+- **Cost:** **Tencent is the cost-advantaged cloud**, so placement is tilted toward
+  Tencent within the latency/security constraints — an asymmetric, Tencent-weighted
+  active/active topology ([06](06-cost-and-placement-economics.md)).
 
 ---
 
@@ -53,21 +56,29 @@ start a phase until the previous one's criteria are met.
 - Placement controller + **epoch fencing** ([04 §3](04-resilience-operations.md)).
 - **Exit:** kill an AWS region under load → bounded RTO, RPO≈0, no lost trades.
 
-### Phase 2 — Add Tencent: active/active edge + DR standby
+### Phase 2 — Add Tencent: active/active edge + DR standby (lead with cost)
 *Goal: both clouds live for stateless/market-data; cross-cloud failover for the
-core.*
+core — and start capturing Tencent's cost advantage.*
 - Stand up Tencent (TKE, CKafka, edge, WS fan-out, CDN) **active/active** for
-  edge/auth/market-data, serving APAC.
+  edge/auth/market-data, serving APAC. **Shift the bulk WS fan-out + market-data/
+  analytics compute to Tencent first** — the biggest, easiest cost win
+  ([06 §3–4](06-cost-and-placement-economics.md)).
 - **Mirror command logs cross-cloud**; Tencent hosts **hot standbys** for AWS
   market shards. Ledger: **region-primary per cloud (Option B)**.
 - Private **interconnect**, **GSLB**, **geofencing**, per-cloud security parity
-  (policy-as-code in both).
-- **Exit:** APAC served locally; fail AWS→Tencent for stateless invisibly;
-  cross-cloud standby promotion tested under load.
+  (policy-as-code in both). Stand up **cost tagging + per-cloud dashboards** from
+  day one ([06 §8](06-cost-and-placement-economics.md)).
+- **Exit:** APAC served locally on Tencent; fail AWS→Tencent for stateless
+  invisibly; cross-cloud standby promotion tested under load; **measured cost-per-
+  GB-egress and cost-per-million-orders trending down**.
 
 ### Phase 3 — True active/active matching + global ledger
 *Goal: both clouds match real markets; whole-cloud loss survivable.*
-- **Split market primaries across both clouds** (locality-aware placement).
+- **Split market primaries across both clouds** (locality- **and cost-aware**
+  placement, Tencent-weighted — [06 §3](06-cost-and-placement-economics.md)).
+- Adopt **cost-aware tiered DR** (warm log-consumer core + cold/elastic sheddable
+  tiers) so the Tencent-weighting doesn't pay 2× for idle capacity
+  ([06 §5](06-cost-and-placement-economics.md)).
 - Migrate the ledger to **distributed SQL with a cross-cloud quorum (Option A)**,
   leaseholders pinned to home regions ([01 §4](01-data-and-consistency.md)).
 - **Exit:** whole-cloud failover under load within target RTO/RPO; both clouds
@@ -102,6 +113,8 @@ core.*
 | D6 | Custody: buy (Fireblocks-class) vs self-MPC | Time-to-market vs control/cost | Vendor MPC first, revisit |
 | D7 | Managed vs self-managed Kafka / mesh / observability | Ops burden vs control/cost | Managed where each cloud offers parity |
 | D8 | Cross-region order-entry SLA for distant retail | Sets colocation/placement investment | Accept +1 WAN RTT, optimize placement |
+| D9 | **Tencent-weighting level** (how much active load to lean onto Tencent) | Trades steady-state cost vs AWS failover headroom needed ([06 §5](06-cost-and-placement-economics.md)) | Tencent-majority for cost-sensitive/APAC; tune to risk appetite |
+| D10 | Commitment coverage split (Tencent reserved vs AWS Savings Plans vs spot) | Sets discount depth vs flexibility ([06 §6](06-cost-and-placement-economics.md)) | Commit Tencent-heavy baseline; burst on spot |
 
 ---
 
@@ -116,7 +129,9 @@ core.*
 | Custody compromise | Low | Critical | HSM/MPC, shares across clouds, cold majority, withdrawal controls ([03 §5](03-security.md)) |
 | DDoS during volatility | High | High | Multi-cloud DDoS + WAF + CDN offload; fail attacked cloud away ([03 §3](03-security.md)) |
 | Cloud-service parity gaps (AWS vs Tencent) | High | Med | Abstractions in IaC; per-cloud security reviews; test both ([03 §10](03-security.md)) |
-| Cross-cloud egress cost blowout | Med | Med | Replicate only A/B/C, compress, private interconnect, no projection replication ([04 §6](04-resilience-operations.md)) |
+| Cross-cloud egress cost blowout | Med | Med | Replicate only A/B/C, compress, private interconnect, no projection replication ([06 §4](06-cost-and-placement-economics.md)) |
+| Over-weighting Tencent erodes AWS failover headroom | Med | High | Cost-aware **tiered DR**: warm log-consumer core + cold/elastic burst; keep a headroom floor ([06 §5](06-cost-and-placement-economics.md)); tune via D9 |
+| Tencent price/term changes erode the advantage | Low | Med | Portable IaC + image (low switching cost); commitment laddering; track unit economics ([06 §8](06-cost-and-placement-economics.md)) |
 | Operational complexity of two clouds | High | Med | One IaC + image + GitOps; strong observability; game days |
 | Regulatory change (jurisdiction bans) | Med | High | Geofencing + multi-region flexibility to exit a market quickly |
 
@@ -140,6 +155,11 @@ core.*
   *([03 §5,§10](03-security.md).)*
 - **ADR-6: One image + one IaC; cloud differences live in config, not code.** Keeps
   two clouds operable and prevents posture drift. *([04 §7](04-resilience-operations.md).)*
+- **ADR-7: Cost-weighted, Tencent-majority placement within the perf/security
+  constraints.** Tencent is cheaper (notably on egress, the dominant cost), so the
+  larger cost-sensitive and APAC share runs there; AWS provides NA/EU reach and
+  resilient counterpart capacity. Cost never overrides latency or compliance.
+  *([06](06-cost-and-placement-economics.md).)*
 
 ---
 

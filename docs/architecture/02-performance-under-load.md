@@ -59,11 +59,12 @@ so it's the same in both clouds and never crosses a cloud on the read path.
 
 ## 2. Four levers to minimize the cross-region penalty
 
-1. **Locality-aware primary placement.** Put each market's primary in the cloud/
-   region where most of its flow originates (APAC-heavy pairs → Tencent; US/EU
-   pairs → AWS). The *placement controller* ([04](04-resilience-operations.md))
-   optimizes this continuously. Most users then trade their popular markets
-   locally.
+1. **Locality- and cost-aware primary placement.** Put each market's primary in the
+   cloud/region where most of its flow originates (APAC-heavy pairs → Tencent; US/EU
+   pairs → AWS), and where latencies are comparable, prefer the **cheaper cloud
+   (Tencent)** — see [06](06-cost-and-placement-economics.md). The *placement
+   controller* ([04](04-resilience-operations.md)) optimizes this continuously. Most
+   users then trade their popular markets locally, on the cost-efficient cloud.
 2. **Colocation / Direct Connect for latency-sensitive participants.** Market
    makers and algos that need microseconds connect **directly into the primary
    region** (Direct Connect / Tencent DC / cross-connect in the same metro). Every

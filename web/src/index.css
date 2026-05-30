@@ -47,6 +47,42 @@ a { color: inherit; text-decoration: none; }
 button { font-family: inherit; cursor: pointer; }
 input, select { font-family: inherit; }
 
+/* ---- accessibility: visible keyboard focus + reduced motion ---- */
+/* Always provide a visible :focus-visible indicator (WCAG). Low-specificity
+   :where() so component styles can still adjust the look if needed. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible,
+.book__row:focus-visible,
+.tbl__row:focus-visible,
+.rowlink:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Skip link: hidden until focused, then pinned top-left over the header. */
+.skip-link {
+  position: absolute;
+  inset-block-start: 6px;
+  inset-inline-start: 6px;
+  z-index: 100;
+  background: var(--accent);
+  color: var(--accent-ink);
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  transform: translateY(-160%);
+  transition: transform 0.15s;
+}
+.skip-link:focus { transform: translateY(0); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 /* ---- utility ---- */
 .up { color: var(--up); }
 .down { color: var(--down); }
@@ -62,12 +98,15 @@ input, select { font-family: inherit; }
   overflow: auto;
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
+  scrollbar-width: thin;                          /* Firefox */
+  scrollbar-color: var(--border) transparent;     /* Firefox */
 }
 .scroll::-webkit-scrollbar { inline-size: 8px; block-size: 8px; }
 .scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 .scroll::-webkit-scrollbar-track { background: transparent; }
 
-.empty { color: var(--muted-2); text-align: center; padding: 18px; font-size: 12px; }
+/* --muted (not --muted-2) for empty states so the contrast clears WCAG AA. */
+.empty { color: var(--muted); text-align: center; padding: 18px; font-size: 12px; }
 
 /* ============================================================
    App shell + top bar
@@ -283,8 +322,8 @@ input, select { font-family: inherit; }
   border-radius: var(--radius-sm); padding: 9px 10px; font-size: 13px; inline-size: 100%;
   font-variant-numeric: tabular-nums;
 }
-.field__input input { background: transparent; border: 0; padding: 9px 10px; outline: none; }
-.field input:focus, .field select:focus { outline: none; border-color: var(--accent); }
+.field__input input { background: transparent; border: 0; padding: 9px 10px; }
+.field input:focus, .field select:focus { border-color: var(--accent); }
 /* Validation feedback only after the user has interacted. */
 .field input:user-invalid { border-color: var(--down); }
 
@@ -353,7 +392,7 @@ input, select { font-family: inherit; }
   background: var(--panel); border: 1px solid var(--border); color: var(--text);
   border-radius: 999px; padding: 9px 16px; inline-size: 260px; max-inline-size: 50vw;
 }
-.search:focus { outline: none; border-color: var(--accent); }
+.search:focus { border-color: var(--accent); }
 .dtable--markets td { padding-block: 11px; }
 .markets-subhead { font-size: 18px; margin: 26px 0 12px; display: flex; align-items: center; gap: 10px; }
 

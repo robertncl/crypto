@@ -17,8 +17,9 @@ must become and how to get there.
 | [01 — Data & Consistency](01-data-and-consistency.md) | Data tiers, the ledger, ordering, replication, exactly-once |
 | [02 — Performance Under Load](02-performance-under-load.md) | Latency budget, matching-engine scaling, fan-out, caching, load testing |
 | [03 — Security](03-security.md) | Threat model, edge/DDoS, zero trust, custody/HSM, IAM, compliance |
-| [04 — Resilience & Operations](04-resilience-operations.md) | DR/RTO/RPO, failover, networking, observability, CI/CD, cost |
+| [04 — Resilience & Operations](04-resilience-operations.md) | DR/RTO/RPO, failover, networking, observability, CI/CD |
 | [05 — Roadmap & Decisions](05-roadmap-and-decisions.md) | Phased migration, assumptions, decisions needed, risks |
+| [06 — Cost & Placement Economics](06-cost-and-placement-economics.md) | **Cost-aware, Tencent-advantaged placement**, egress strategy, cost-aware DR, TCO model, FinOps |
 
 ---
 
@@ -27,10 +28,15 @@ must become and how to get there.
 ### Priorities (explicit ordering)
 1. **Performance under load** — low, predictable latency for the order path and
    market data; graceful behavior at peak (listing events, volatility spikes,
-   DDoS-grade traffic).
+   DDoS-grade traffic). *(Hard constraint.)*
 2. **Security** — exchanges are among the most-attacked systems on the internet;
-   custody is existential.
-3. Availability/DR, cost, and operational simplicity follow.
+   custody is existential. *(Hard constraint.)*
+3. **Cost** — minimized **within** the two constraints above. **Tencent Cloud is
+   the cost-advantaged provider**, so placement is **tilted toward Tencent**
+   wherever that doesn't worsen latency or violate security/compliance — yielding
+   an **asymmetric, Tencent-weighted** active/active topology (see
+   [06](06-cost-and-placement-economics.md)).
+4. Availability/DR and operational simplicity follow.
 
 ### Goals
 - **Active/active across two clouds**: both AWS and Tencent serve live production
@@ -81,6 +87,11 @@ must become and how to get there.
    logic.
 7. **Everything is a deterministic projection or an idempotent consumer.** Settle
    exactly once, recompute everything else.
+8. **Cost-aware, Tencent-weighted placement.** Each workload runs on the *cheapest
+   cloud that still meets its latency SLO, residency, and security tier* — which,
+   given Tencent's cost advantage, concentrates cost-sensitive, latency-tolerant,
+   and APAC load on Tencent, with AWS providing NA/EU reach and resilient
+   counterpart capacity ([06](06-cost-and-placement-economics.md)).
 
 ---
 
@@ -97,8 +108,8 @@ This is the crux. We classify every tier by *what active/active means for it*.
  Market-data fan-out / WS      Fully A/A. Each cloud fans out from its       Read-only projection of the
    edge                       local copy of the trade event log.          ordered trade log.
  Matching engine (per market) SINGLE-ACTIVE per market ("primary"), with   One ordered book per market is
-                              a HOT STANDBY in the other cloud. Different  required for correctness; cross-
-                              markets' primaries split across both clouds. cloud consensus is too slow.
+                              a HOT STANDBY in the other cloud. Primaries  required for correctness; cross-
+                              split across clouds, cost-weighted → Tencent. cloud consensus is too slow.
  Risk / liquidation (perps)   Co-located with its market's engine.         Needs the same ordered stream.
  Custody ledger (writes)      Strongly consistent. Either (a) distributed  Money must never double-spend.
                               SQL with quorum, or (b) region-primary per
@@ -108,11 +119,13 @@ This is the crux. We classify every tier by *what active/active means for it*.
 ```
 
 The key insight: **the *platform* is active/active even though each *market* is
-single-active.** Half the market shards run primary in AWS, half in Tencent; both
-clouds carry real trading load, each is the hot standby for the other, and a user
-in any region hits a local edge that routes their order to the (possibly remote)
-*primary region for that specific market* — but that routing decision and the
-match happen without a synchronous cross-cloud hop on the critical settle path
+single-active.** Market-shard primaries are split across both clouds — **weighted
+toward Tencent on cost** (APAC-popular and latency-tolerant markets on the cheaper
+cloud), with NA/EU latency-critical markets on AWS ([06](06-cost-and-placement-economics.md)).
+Both clouds carry real trading load, each is the hot standby for the other, and a
+user in any region hits a local edge that routes their order to the (possibly
+remote) *primary region for that specific market* — but that routing decision and
+the match happen without a synchronous cross-cloud hop on the critical settle path
 (see [02](02-performance-under-load.md) for how).
 
 > **Analogy:** think of it like sharded primaries in a distributed database —
@@ -165,6 +178,12 @@ entirely: each market is ordered by a single local sequencer, replicated async.
             └──────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+> **Cost weighting (not drawn to scale):** the two clouds are active/active, but
+> **load is deliberately *not* balanced 50/50.** Because Tencent is cheaper, the
+> Tencent side carries the **larger share** — APAC edge/trading, the bulk WebSocket
+> fan-out, and data/analytics compute — while AWS carries NA/EU and the resilient
+> counterpart. See [06 — Cost & Placement Economics](06-cost-and-placement-economics.md).
+
 ---
 
 ## 5. Component map: MVP → target
@@ -202,5 +221,10 @@ giving near-instant failover with no lost trades. **Money settlement** runs on a
 **strongly-consistent database that spans both clouds**, so balances can never
 double-spend. **Custody keys** live in **hardware security modules, segregated**
 from everything else and never shared between clouds. The order path **never makes
-a synchronous call across clouds**, which is what keeps it fast under load. Read
-on for the latency budget, the security controls, and the failure behavior.
+a synchronous call across clouds**, which is what keeps it fast under load. And
+because **Tencent Cloud is cheaper**, we run the larger, cost-sensitive share of
+the platform there — the bulk of market-data streaming, APAC trading, and data
+processing — while AWS covers North America and Europe and stands as the resilient
+counterpart; cost is optimized *within* the performance and security guarantees,
+never at their expense. Read on for the latency budget, the security controls, the
+failure behavior, and the cost model.

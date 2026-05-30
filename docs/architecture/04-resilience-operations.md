@@ -117,7 +117,13 @@ features (e.g. shed analytics, widen non-core market quoting) rather than fall o
 
 ## 6. Cost & FinOps
 
-Two clouds is **not** simply 2× — active/active shares the load — but there are real
+> The full cost model, the **Tencent-advantaged cost-weighted placement**, the
+> egress strategy, and **cost-aware DR** live in
+> [06 — Cost & Placement Economics](06-cost-and-placement-economics.md). The summary
+> below covers the operational drivers.
+
+Two clouds is **not** simply 2× — active/active shares the load, and the larger,
+cost-sensitive share runs on the cheaper cloud (Tencent) — but there are real
 multicloud cost drivers to manage:
 
 | Driver | Control |
