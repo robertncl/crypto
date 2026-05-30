@@ -86,9 +86,9 @@ function PositionsTable({ positions, onClose }: { positions: Position[]; onClose
     <table className="dtable">
       <thead>
         <tr>
-          <th>Market</th><th>Side</th><th className="r">Size</th><th className="r">Entry</th>
-          <th className="r">Mark</th><th className="r">Liq. Price</th><th className="r">Margin</th>
-          <th className="r">Unrealized PnL (ROE)</th><th></th>
+          <th scope="col">Market</th><th scope="col">Side</th><th scope="col" className="r">Size</th><th scope="col" className="r">Entry</th>
+          <th scope="col" className="r">Mark</th><th scope="col" className="r">Liq. Price</th><th scope="col" className="r">Margin</th>
+          <th scope="col" className="r">Unrealized PnL (ROE)</th><th></th>
         </tr>
       </thead>
       <tbody>
@@ -120,9 +120,9 @@ function PerpOrdersTable({ orders, onCancel }: { orders: PerpOrder[]; onCancel?:
     <table className="dtable">
       <thead>
         <tr>
-          <th>Time</th><th>Market</th><th>Side</th><th>Type</th>
-          <th className="r">Price</th><th className="r">Qty</th><th className="r">Filled</th>
-          <th>Status</th>{onCancel && <th></th>}
+          <th scope="col">Time</th><th scope="col">Market</th><th scope="col">Side</th><th scope="col">Type</th>
+          <th scope="col" className="r">Price</th><th scope="col" className="r">Qty</th><th scope="col" className="r">Filled</th>
+          <th scope="col">Status</th>{onCancel && <th></th>}
         </tr>
       </thead>
       <tbody>

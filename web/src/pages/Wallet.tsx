@@ -75,7 +75,7 @@ export function Wallet() {
           <h3 className="card__title">Balances</h3>
           <table className="dtable">
             <thead>
-              <tr><th>Asset</th><th className="r">Available</th><th className="r">In Order</th><th className="r">Value</th></tr>
+              <tr><th scope="col">Asset</th><th scope="col" className="r">Available</th><th scope="col" className="r">In Order</th><th scope="col" className="r">Value</th></tr>
             </thead>
             <tbody>
               {assets.map((a) => {
@@ -107,7 +107,7 @@ export function Wallet() {
           ) : (
             <table className="dtable">
               <thead>
-                <tr><th>Time</th><th>Type</th><th>Asset</th><th className="r">Amount</th><th>Status</th><th>TxID</th></tr>
+                <tr><th scope="col">Time</th><th scope="col">Type</th><th scope="col">Asset</th><th scope="col" className="r">Amount</th><th scope="col">Status</th><th scope="col">TxID</th></tr>
               </thead>
               <tbody>
                 {txns.map((t) => (

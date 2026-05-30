@@ -90,9 +90,9 @@ function OrdersTable({ orders, empty, onCancel }: {
     <table className="dtable">
       <thead>
         <tr>
-          <th>Time</th><th>Side</th><th>Type</th>
-          <th className="r">Price</th><th className="r">Amount</th><th className="r">Filled</th>
-          <th>Status</th>{onCancel && <th></th>}
+          <th scope="col">Time</th><th scope="col">Side</th><th scope="col">Type</th>
+          <th scope="col" className="r">Price</th><th scope="col" className="r">Amount</th><th scope="col" className="r">Filled</th>
+          <th scope="col">Status</th>{onCancel && <th></th>}
         </tr>
       </thead>
       <tbody>
@@ -123,9 +123,9 @@ function TradesTable({ trades, market }: { trades: Trade[]; market: Market }) {
     <table className="dtable">
       <thead>
         <tr>
-          <th>Time</th><th>Side</th>
-          <th className="r">Price</th><th className="r">Amount ({market.base})</th>
-          <th className="r">Value ({market.quote})</th><th>Trade</th>
+          <th scope="col">Time</th><th scope="col">Side</th>
+          <th scope="col" className="r">Price</th><th scope="col" className="r">Amount ({market.base})</th>
+          <th scope="col" className="r">Value ({market.quote})</th><th scope="col">Trade</th>
         </tr>
       </thead>
       <tbody>

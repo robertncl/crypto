@@ -290,6 +290,8 @@ input, select { font-family: inherit; }
 /* ---- trades feed ---- */
 .tbl { display: flex; flex-direction: column; min-block-size: 0; flex: 1; }
 .tbl--trades { font-family: var(--mono); }
+/* Non-color side cue for the trade tape (colour-blind safe). */
+.tside { font-size: 8px; margin-inline-end: 3px; vertical-align: middle; }
 .tbl__body { flex: 1; min-block-size: 0; }
 .tbl__row {
   display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;

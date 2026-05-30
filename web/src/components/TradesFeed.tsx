@@ -36,7 +36,9 @@ export function TradesFeed({ market }: { market: Market }) {
         <div className="tbl__body scroll">
           {trades.map((tr) => (
             <div className="tbl__row" key={tr.id}>
-              <span className={tr.takerSide === "buy" ? "up" : "down"}>{fmt(tr.price, 2)}</span>
+              <span className={tr.takerSide === "buy" ? "up" : "down"}>
+                <span className="tside" aria-hidden="true">{tr.takerSide === "buy" ? "▲" : "▼"}</span>{fmt(tr.price, 2)}
+              </span>
               <span className="r">{fmt(tr.quantity, 5)}</span>
               <span className="r muted">{timeAgo(tr.createdAt)}</span>
             </div>
