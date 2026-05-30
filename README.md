@@ -18,6 +18,14 @@ guided tour that explains each component to engineers **new to crypto markets** 
 concept first (order books, custody, leverage, funding, liquidation…), then the
 real code that implements it. Start at **[docs/README.md](docs/README.md)**.
 
+## 🏗️ Multicloud deployment design
+
+[`docs/architecture/`](docs/architecture/README.md) is a principal-level design plan
+for running Nebula **active/active across AWS + Tencent Cloud**, optimized for
+**performance under load** and **security** — covering the sharded-matching model,
+data consistency, the latency budget, the security/custody posture, DR, and a
+phased migration roadmap.
+
 ---
 
 ## Features
