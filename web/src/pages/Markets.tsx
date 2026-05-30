@@ -2,35 +2,37 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { wsClient } from "../api/ws";
-import type { Market, Ticker } from "../api/types";
+import type { Market, PerpMarket, Ticker } from "../api/types";
 import { fmt, fmtCompact, fmtPct, toNum } from "../utils/format";
 
 export function Markets() {
   const navigate = useNavigate();
   const [markets, setMarkets] = useState<Market[]>([]);
+  const [perps, setPerps] = useState<PerpMarket[]>([]);
   const [tickers, setTickers] = useState<Record<string, Ticker>>({});
   const [q, setQ] = useState("");
 
   useEffect(() => {
     api.markets().then(setMarkets).catch(() => {});
+    api.perpMarkets().then(setPerps).catch(() => {});
     api.tickers().then((all) => setTickers(Object.fromEntries(all.map((t) => [t.market, t])))).catch(() => {});
   }, []);
 
-  // Subscribe to each market's ticker once markets are known.
+  // Subscribe to every market's ticker (spot + perp) once known.
   useEffect(() => {
-    const unsubs = markets.map((m) =>
-      wsClient.subscribe(`ticker:${m.symbol}`, (d) => {
+    const symbols = [...markets.map((m) => m.symbol), ...perps.map((p) => p.symbol)];
+    const unsubs = symbols.map((sym) =>
+      wsClient.subscribe(`ticker:${sym}`, (d) => {
         const t = d as Ticker;
         setTickers((prev) => ({ ...prev, [t.market]: t }));
       }),
     );
     return () => unsubs.forEach((u) => u());
-  }, [markets]);
+  }, [markets, perps]);
 
-  const rows = useMemo(
-    () => markets.filter((m) => m.symbol.toLowerCase().includes(q.toLowerCase())),
-    [markets, q],
-  );
+  const ql = q.toLowerCase();
+  const rows = useMemo(() => markets.filter((m) => m.symbol.toLowerCase().includes(ql)), [markets, ql]);
+  const perpRows = useMemo(() => perps.filter((m) => m.symbol.toLowerCase().includes(ql)), [perps, ql]);
 
   return (
     <div className="page page--markets">
@@ -79,8 +81,47 @@ export function Markets() {
             })}
           </tbody>
         </table>
-        {rows.length === 0 && <div className="empty pad">No markets found</div>}
+        {rows.length === 0 && <div className="empty pad">No spot markets found</div>}
       </div>
+
+      {perpRows.length > 0 && (
+        <>
+          <h2 className="markets-subhead">Perpetual Futures <span className="badge badge--warn">Leverage</span></h2>
+          <div className="card">
+            <table className="dtable dtable--markets">
+              <thead>
+                <tr>
+                  <th>Contract</th>
+                  <th className="r">Last Price</th>
+                  <th className="r">24h Change</th>
+                  <th className="r">Index</th>
+                  <th className="r">Max Leverage</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {perpRows.map((m) => {
+                  const t = tickers[m.symbol];
+                  const up = toNum(t?.changePct) >= 0;
+                  return (
+                    <tr key={m.symbol} className="rowlink" onClick={() => navigate(`/futures/${m.symbol}`)}>
+                      <td className="paircell">
+                        <span className="paircell__icon" aria-hidden>{m.base[0]}</span>
+                        <span><strong>{m.symbol}</strong></span>
+                      </td>
+                      <td className="r mono">{fmt(t?.last ?? "0", 2)}</td>
+                      <td className={`r ${up ? "up" : "down"}`}>{fmtPct(t?.changePct ?? "0")}</td>
+                      <td className="r mono muted">{m.indexSymbol}</td>
+                      <td className="r mono">{m.maxLeverage}×</td>
+                      <td className="r"><button className="btn btn--mini btn--primary">Trade</button></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }

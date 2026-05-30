@@ -20,14 +20,19 @@ function build(levels: DepthLevel[]): Row[] {
   });
 }
 
-export function OrderBook({ market, onPickPrice }: { market: Market; onPickPrice: (p: string) => void }) {
+export function OrderBook({ market, onPickPrice, fetchDepth }: {
+  market: Market;
+  onPickPrice: (p: string) => void;
+  fetchDepth?: (symbol: string, limit: number) => Promise<Depth>;
+}) {
   const [depth, setDepth] = useState<Depth>({ market: market.symbol, bids: [], asks: [] });
 
   useEffect(() => {
     let live = true;
-    api.depth(market.symbol, 50).then((d) => { if (live) setDepth(d); }).catch(() => {});
+    const load = fetchDepth ?? api.depth;
+    load(market.symbol, 50).then((d) => { if (live) setDepth(d); }).catch(() => {});
     return () => { live = false; };
-  }, [market.symbol]);
+  }, [market.symbol, fetchDepth]);
 
   useChannel<Depth>(`depth:${market.symbol}`, setDepth);
 

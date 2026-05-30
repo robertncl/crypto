@@ -5,6 +5,7 @@
 import type {
   AuthResponse, Asset, Balance, Candle, Depth, Market, Order, Side,
   OrderType, Ticker, Trade, User, WalletAddress, WalletTxn,
+  PerpMarket, Position, PerpOrder, FundingInfo,
 } from "./types";
 
 let token: string | null = null;
@@ -62,6 +63,19 @@ export const api = {
   placeOrder: (body: { market: string; side: Side; type: OrderType; price?: string; quantity: string }) =>
     request<Order>("/orders", { method: "POST", body: JSON.stringify({ price: "0", ...body }) }),
   cancelOrder: (id: string) => request<Order>(`/orders/${id}`, { method: "DELETE" }),
+
+  // derivatives
+  perpMarkets: () => request<PerpMarket[]>("/perp/markets"),
+  perpMarket: (symbol: string) => request<PerpMarket>(`/perp/markets/${symbol}`),
+  perpDepth: (symbol: string, limit = 50) => request<Depth>(`/perp/markets/${symbol}/depth?limit=${limit}`),
+  funding: (symbol: string) => request<FundingInfo>(`/perp/markets/${symbol}/funding`),
+  positions: () => request<Position[]>("/perp/positions"),
+  openPerpOrders: (market?: string) => request<PerpOrder[]>(`/perp/orders${market ? `?market=${market}` : ""}`),
+  perpOrderHistory: (market?: string) => request<PerpOrder[]>(`/perp/orders/history${market ? `?market=${market}` : ""}`),
+  placePerpOrder: (body: { market: string; side: Side; type: OrderType; price?: string; quantity: string; leverage: number; reduceOnly?: boolean }) =>
+    request<PerpOrder>("/perp/orders", { method: "POST", body: JSON.stringify({ price: "0", reduceOnly: false, ...body }) }),
+  cancelPerpOrder: (id: string) => request<PerpOrder>(`/perp/orders/${id}`, { method: "DELETE" }),
+  closePosition: (symbol: string) => request<PerpOrder>(`/perp/positions/${symbol}/close`, { method: "POST" }),
 
   // wallet
   walletAddress: (asset: string) => request<WalletAddress>(`/wallet/address?asset=${asset}`),

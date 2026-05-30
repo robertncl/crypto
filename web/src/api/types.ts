@@ -131,3 +131,68 @@ export interface AuthResponse {
   token: string;
   user: User;
 }
+
+// ---------- derivatives (perpetual futures) ----------
+
+export interface PerpMarket {
+  symbol: string;
+  base: string;
+  settle: string;
+  indexSymbol: string;
+  priceTick: string;
+  qtyStep: string;
+  minNotional: string;
+  makerFee: string;
+  takerFee: string;
+  maxLeverage: number;
+  mmr: string;
+  status: string;
+}
+
+export type PositionSide = "long" | "short" | "flat";
+
+export interface Position {
+  id: number;
+  userId: number;
+  market: string;
+  side: PositionSide;
+  size: string;
+  entryPrice: string;
+  margin: string;
+  leverage: number;
+  realizedPnl: string;
+  fundingPaid: string;
+  updatedAt: number;
+  // computed against live mark price
+  markPrice: string;
+  liqPrice: string;
+  unrealizedPnl: string;
+  notional: string;
+  marginRatio: string;
+}
+
+export interface PerpOrder {
+  id: string;
+  userId: number;
+  market: string;
+  side: Side;
+  type: OrderType;
+  price: string;
+  quantity: string;
+  filled: string;
+  avgPrice: string;
+  leverage: number;
+  reduceOnly: boolean;
+  status: OrderStatus;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface FundingInfo {
+  market: string;
+  rate: string;
+  indexPrice: string;
+  markPrice: string;
+  intervalSec: number;
+  nextFundingTime: number;
+}
