@@ -14,6 +14,7 @@ type Config struct {
 	JWTTTLHours int    // access token lifetime in hours
 	EnableBot   bool   // run the seed market-maker bot for a lively demo
 	CORSOrigin  string // allowed CORS origin for the SPA dev server
+	WebDir      string // directory of the built SPA to serve (empty = skip)
 }
 
 func Load() Config {
@@ -24,6 +25,7 @@ func Load() Config {
 		JWTTTLHours: envInt("JWT_TTL_HOURS", 72),
 		EnableBot:   envBool("ENABLE_BOT", true),
 		CORSOrigin:  env("CORS_ORIGIN", "http://localhost:5173"),
+		WebDir:      env("WEB_DIR", "web/dist"),
 	}
 }
 

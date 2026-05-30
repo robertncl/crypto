@@ -3,7 +3,7 @@ import { api } from "../api/client";
 import type { Market, Order, Trade } from "../api/types";
 import { useAuth } from "../state/auth";
 import { useChannel } from "../hooks/useStream";
-import { fmt, shortId, timeAgo } from "../utils/format";
+import { fmt, timeAgo } from "../utils/format";
 
 type Tab = "open" | "history" | "trades";
 
@@ -73,17 +73,17 @@ export function UserOrders({ market }: { market: Market }) {
 
       <div className="scroll orders-scroll">
         {tab === "open" && (
-          <OrdersTable orders={open} empty="No open orders" market={market} onCancel={cancel} />
+          <OrdersTable orders={open} empty="No open orders" onCancel={cancel} />
         )}
-        {tab === "history" && <OrdersTable orders={history} empty="No order history" market={market} />}
+        {tab === "history" && <OrdersTable orders={history} empty="No order history" />}
         {tab === "trades" && <TradesTable trades={trades} market={market} />}
       </div>
     </section>
   );
 }
 
-function OrdersTable({ orders, empty, market, onCancel }: {
-  orders: Order[]; empty: string; market: Market; onCancel?: (id: string) => void;
+function OrdersTable({ orders, empty, onCancel }: {
+  orders: Order[]; empty: string; onCancel?: (id: string) => void;
 }) {
   if (orders.length === 0) return <div className="empty pad">{empty}</div>;
   return (

@@ -95,7 +95,10 @@ func (s *Server) routes() http.Handler {
 // API fallback so client-side routes resolve to index.html. In dev the SPA runs
 // under Vite, so a missing dist directory is fine.
 func (s *Server) mountStatic(r chi.Router) {
-	dist := "web/dist"
+	dist := s.cfg.WebDir
+	if dist == "" {
+		return
+	}
 	if _, err := os.Stat(filepath.Join(dist, "index.html")); err != nil {
 		return
 	}

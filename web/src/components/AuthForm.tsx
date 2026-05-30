@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ApiError } from "../api/client";
 import { useAuth } from "../state/auth";
@@ -13,7 +13,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
 
   const isRegister = mode === "register";
 
-  async function submit(e: React.FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
     setErr("");
     setBusy(true);

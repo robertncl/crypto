@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import type { Asset, Ticker, WalletAddress, WalletTxn } from "../api/types";
@@ -144,7 +144,7 @@ function DepositCard({ assets }: { assets: Asset[] }) {
     api.walletAddress(asset).then(setAddr).catch(() => {});
   }, [asset]);
 
-  async function simulate(e: React.FormEvent) {
+  async function simulate(e: FormEvent) {
     e.preventDefault();
     setMsg("");
     try {
@@ -197,7 +197,7 @@ function WithdrawCard({ assets, kycOk, onDone }: { assets: Asset[]; kycOk: boole
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const meta = assets.find((a) => a.symbol === asset);
 
-  async function submit(e: React.FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
     setMsg(null);
     try {

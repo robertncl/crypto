@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import type { Market, OrderType, Side } from "../api/types";
@@ -24,7 +24,6 @@ export function OrderForm({ market, pickedPrice, lastPrice }: { market: Market; 
     if (type === "limit" && !price && lastPrice && toNum(lastPrice) > 0) setPrice(trimDecimal(lastPrice));
   }, [lastPrice, type, price]);
 
-  const priceDp = stepDecimals(market.priceTick);
   const qtyDp = stepDecimals(market.qtyStep);
 
   const availQuote = toNum(get(market.quote).available);
@@ -49,7 +48,7 @@ export function OrderForm({ market, pickedPrice, lastPrice }: { market: Market; 
     }
   }
 
-  async function submit(e: React.FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
     setMsg(null);
     if (!user) return;

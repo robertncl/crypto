@@ -1,0 +1,26 @@
+# Go
+/nebula
+/backend/nebula
+/backend/exchange-server
+*.test
+
+# Runtime database (SQLite + WAL)
+*.db
+*.db-shm
+*.db-wal
+
+# Node / Vite
+node_modules/
+web/dist/
+web/.vite/
+*.tsbuildinfo
+
+# Logs / env
+*.log
+.env
+.env.local
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/

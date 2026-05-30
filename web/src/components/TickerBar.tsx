@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { api } from "../api/client";
 import type { Market, Ticker } from "../api/types";
 import { useChannel } from "../hooks/useStream";
@@ -39,7 +39,7 @@ export function TickerBar({ market }: { market: Market }) {
   );
 }
 
-function Stat({ label, value }: { label: string; value: React.ReactNode }) {
+function Stat({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="stat">
       <div className="stat__label">{label}</div>
