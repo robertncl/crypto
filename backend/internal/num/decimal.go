@@ -18,6 +18,12 @@ const Decimals = 8
 // to obtain the internal representation.
 const Scale int64 = 100_000_000
 
+// maxDecimalLen bounds the length of a parseable decimal string. The largest
+// in-range value (int64 max, ~9.2e18, scaled) needs ~19 integer + 8 fractional
+// digits; 40 is generous. Rejecting longer inputs prevents a malicious caller
+// from forcing huge big.Int allocations/CPU via a million-digit number.
+const maxDecimalLen = 40
+
 var (
 	bigScale = big.NewInt(Scale)
 
@@ -164,7 +170,7 @@ func (d Dec) String() string {
 // digits beyond Decimals are truncated.
 func Parse(s string) (Dec, error) {
 	s = strings.TrimSpace(s)
-	if s == "" {
+	if s == "" || len(s) > maxDecimalLen {
 		return Zero, ErrParse
 	}
 	neg := false

@@ -60,6 +60,22 @@ simulated-deposit behavior, but most must be fixed before any real deployment.
 ¹ Intentional in the demo (simulated custody); Critical if productionized.
 ² Critical only if deployed without setting `JWT_SECRET`.
 
+### Remediation status (hardening pass applied)
+
+| ID | Status | What changed |
+|----|--------|--------------|
+| F2 | ✅ Fixed | Server **refuses to start** with the default/short `JWT_SECRET` unless `DEV=true` (`cmd/server/main.go`, `config`). Make targets pass `DEV=true` for local. |
+| F4 | ✅ Fixed | In-app **rate limiting** (`go-chi/httprate`): 20/min/IP on `/auth/*`, 600/min/IP across the API. Verified: 19×401 → 429. |
+| F5 | ✅ Fixed | **`http.MaxBytesReader`** (64 KiB) on all `/api` bodies + **40-char cap** in `num.Parse`. Verified: 100 KB body → 400, 45-digit price → 400. |
+| F6 | ✅ Fixed | **Security-headers** middleware: strict **CSP**, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `HSTS`. Verified present; CSP confirmed not to break the WebSocket (`connect-src 'self'`). |
+| F8 | ✅ Fixed | 500 path now **logs internally and returns a generic message**; wallet handlers routed through the sanitizing mapper. |
+| F1 | ⚠️ By design (demo) | Left intentionally for the simulated-custody demo; flagged for removal before production. |
+| F3, F7, F9–F12 | ⬜ Open | Product decisions (MFA, real KYC, session revocation, WS-ticket, etc.) — not changed in this pass. |
+
+> **Prod note:** the in-app limiter keys by remote IP (`httprate.LimitByIP`). Behind
+> a load balancer, switch to `httprate.KeyByRealIP` (trusting `X-Forwarded-For`
+> only from the LB) so one proxy IP isn't throttled as a single client.
+
 ---
 
 ## 2. Detailed findings

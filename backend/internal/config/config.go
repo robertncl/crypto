@@ -7,6 +7,10 @@ import (
 	"strconv"
 )
 
+// DefaultJWTSecret is the insecure development secret. Using it outside dev mode
+// is refused at startup (see cmd/server) because it would allow token forgery.
+const DefaultJWTSecret = "dev-insecure-secret-change-me"
+
 type Config struct {
 	Addr        string // HTTP listen address, e.g. ":8080"
 	DBPath      string // SQLite file path
@@ -16,18 +20,20 @@ type Config struct {
 	CORSOrigin  string // allowed CORS origin for the SPA dev server
 	WebDir      string // directory of the built SPA to serve (empty = skip)
 	PerpFunding int    // perp funding interval in seconds
+	Dev         bool   // local development mode (relaxes the JWT-secret guard)
 }
 
 func Load() Config {
 	return Config{
 		Addr:        env("ADDR", ":8080"),
 		DBPath:      env("DB_PATH", "exchange.db"),
-		JWTSecret:   env("JWT_SECRET", "dev-insecure-secret-change-me"),
+		JWTSecret:   env("JWT_SECRET", DefaultJWTSecret),
 		JWTTTLHours: envInt("JWT_TTL_HOURS", 72),
 		EnableBot:   envBool("ENABLE_BOT", true),
 		CORSOrigin:  env("CORS_ORIGIN", "http://localhost:5173"),
 		WebDir:      env("WEB_DIR", "web/dist"),
 		PerpFunding: envInt("PERP_FUNDING_SEC", 60),
+		Dev:         envBool("DEV", false),
 	}
 }
 

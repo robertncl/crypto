@@ -21,7 +21,7 @@ deps:
 
 .PHONY: backend
 backend:
-	cd backend && ADDR=$(ADDR) $(GO) run ./cmd/server
+	cd backend && DEV=true ADDR=$(ADDR) $(GO) run ./cmd/server
 
 .PHONY: web
 web:
@@ -44,7 +44,7 @@ build: build-web
 
 .PHONY: run
 run:
-	./nebula
+	DEV=true ./nebula   # local demo; set a strong JWT_SECRET (and omit DEV) for real deployments
 
 .PHONY: test
 test:

@@ -13,7 +13,7 @@ func (s *Server) handleWalletAddress(w http.ResponseWriter, r *http.Request) {
 	asset := strings.ToUpper(r.URL.Query().Get("asset"))
 	addr, err := s.wallet.Address(auth.UserID(r.Context()), asset)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, err.Error())
+		writeDomainErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, addr)
@@ -32,7 +32,7 @@ func (s *Server) handleDeposit(w http.ResponseWriter, r *http.Request) {
 	}
 	txn, err := s.wallet.Deposit(auth.UserID(r.Context()), strings.ToUpper(req.Asset), req.Amount)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, err.Error())
+		writeDomainErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusAccepted, txn)

@@ -31,6 +31,16 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.Lmsgprefix)
 	log.SetPrefix("[exchange] ")
 
+	// Refuse to run with the insecure default signing secret outside dev mode —
+	// it would let anyone forge tokens for any user. Set a strong JWT_SECRET, or
+	// DEV=true for local development.
+	if cfg.JWTSecret == config.DefaultJWTSecret && !cfg.Dev {
+		log.Fatal("refusing to start: JWT_SECRET is unset/default. Set a strong JWT_SECRET (32+ random bytes), or DEV=true for local development.")
+	}
+	if !cfg.Dev && len(cfg.JWTSecret) < 32 {
+		log.Fatal("refusing to start: JWT_SECRET must be at least 32 bytes in production (or set DEV=true).")
+	}
+
 	database, err := db.Open(cfg.DBPath)
 	if err != nil {
 		log.Fatalf("open db: %v", err)
