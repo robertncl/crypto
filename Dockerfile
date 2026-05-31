@@ -12,7 +12,7 @@
 ############################
 # Stage 1 — build the SPA  #
 ############################
-FROM node:20-alpine AS web
+FROM node:26-alpine AS web
 WORKDIR /web
 # Install deps first against the lockfile for reproducible, cacheable builds.
 COPY web/package.json web/package-lock.json ./
