@@ -22,22 +22,37 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # Go does not support build-mode "none"; trace a manual build instead
+          # (the module lives in backend/, so autobuild from the repo root fails).
           - language: go
-            build-mode: none
+            build-mode: manual
           - language: javascript-typescript
             build-mode: none
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Go
+        if: matrix.language == 'go'
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@03e4368ac7daa2bd82b3e85262f3bf87ee112f57 # v3.36.0
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
           # security-and-quality covers both vulnerability and code-quality queries.
           queries: security-and-quality
 
+      # Manual build for Go, traced by CodeQL (runs only for the go matrix leg).
+      - name: Build Go
+        if: matrix.language == 'go'
+        working-directory: backend
+        run: go build ./...
+
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@03e4368ac7daa2bd82b3e85262f3bf87ee112f57 # v3.36.0
         with:
           category: "/language:${{ matrix.language }}"
