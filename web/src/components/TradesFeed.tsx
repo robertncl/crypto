@@ -25,7 +25,7 @@ export function TradesFeed({ market }: { market: Market }) {
   return (
     <section className="panel panel--trades" aria-label="Recent trades">
       <header className="panel__head">
-        <h3>Recent Trades</h3>
+        <h2>Recent Trades</h2>
       </header>
       <div className="tbl tbl--trades">
         <div className="tbl__head">

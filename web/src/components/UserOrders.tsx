@@ -92,7 +92,7 @@ function OrdersTable({ orders, empty, onCancel }: {
         <tr>
           <th scope="col">Time</th><th scope="col">Side</th><th scope="col">Type</th>
           <th scope="col" className="r">Price</th><th scope="col" className="r">Amount</th><th scope="col" className="r">Filled</th>
-          <th scope="col">Status</th>{onCancel && <th aria-label="Actions"></th>}
+          <th scope="col">Status</th>{onCancel && <th><span className="visually-hidden">Actions</span></th>}
         </tr>
       </thead>
       <tbody>

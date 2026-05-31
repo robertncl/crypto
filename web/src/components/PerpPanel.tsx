@@ -88,7 +88,7 @@ function PositionsTable({ positions, onClose }: { positions: Position[]; onClose
         <tr>
           <th scope="col">Market</th><th scope="col">Side</th><th scope="col" className="r">Size</th><th scope="col" className="r">Entry</th>
           <th scope="col" className="r">Mark</th><th scope="col" className="r">Liq. Price</th><th scope="col" className="r">Margin</th>
-          <th scope="col" className="r">Unrealized PnL (ROE)</th><th aria-label="Actions"></th>
+          <th scope="col" className="r">Unrealized PnL (ROE)</th><th><span className="visually-hidden">Actions</span></th>
         </tr>
       </thead>
       <tbody>
@@ -122,7 +122,7 @@ function PerpOrdersTable({ orders, onCancel }: { orders: PerpOrder[]; onCancel?:
         <tr>
           <th scope="col">Time</th><th scope="col">Market</th><th scope="col">Side</th><th scope="col">Type</th>
           <th scope="col" className="r">Price</th><th scope="col" className="r">Qty</th><th scope="col" className="r">Filled</th>
-          <th scope="col">Status</th>{onCancel && <th aria-label="Actions"></th>}
+          <th scope="col">Status</th>{onCancel && <th><span className="visually-hidden">Actions</span></th>}
         </tr>
       </thead>
       <tbody>

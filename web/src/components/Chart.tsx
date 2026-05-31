@@ -107,7 +107,7 @@ export function Chart({ market }: { market: Market }) {
   return (
     <section className="panel panel--chart">
       <header className="panel__head panel__head--chart">
-        <h3>{market.base}/{market.quote}</h3>
+        <h2>{market.base}/{market.quote}</h2>
         <div className="seg">
           {INTERVALS.map((i) => (
             <button

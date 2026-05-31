@@ -210,7 +210,7 @@ input, select { font-family: inherit; }
   display: flex; align-items: center; justify-content: space-between;
   padding: 10px 12px; border-block-end: 1px solid var(--border-soft);
 }
-.panel__head h3 { font-size: 13px; font-weight: 600; }
+.panel__head h2 { font-size: 13px; font-weight: 600; }
 .panel__head--chart { padding-block: 8px; }
 
 .card {

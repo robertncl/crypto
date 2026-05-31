@@ -73,7 +73,7 @@ export function Wallet() {
 
       <div className="wallet-grid">
         <section className="card">
-          <h3 className="card__title">Balances</h3>
+          <h2 className="card__title">Balances</h2>
           <table className="dtable">
             <thead>
               <tr><th scope="col">Asset</th><th scope="col" className="r">Available</th><th scope="col" className="r">In Order</th><th scope="col" className="r">Value</th></tr>
@@ -102,7 +102,7 @@ export function Wallet() {
         <WithdrawCard assets={assets} kycOk={user.kycStatus === "verified"} onDone={reload} />
 
         <section className="card wallet-txns">
-          <h3 className="card__title">Transaction History</h3>
+          <h2 className="card__title">Transaction History</h2>
           {txns.length === 0 ? (
             <div className="empty pad">No transactions yet</div>
           ) : (
@@ -159,7 +159,7 @@ function DepositCard({ assets }: { assets: Asset[] }) {
 
   return (
     <section className="card">
-      <h3 className="card__title">Deposit</h3>
+      <h2 className="card__title">Deposit</h2>
       <label className="field field--stack">
         <span className="field__label">Asset</span>
         <select value={asset} onChange={(e) => setAsset(e.target.value)}>
@@ -214,7 +214,7 @@ function WithdrawCard({ assets, kycOk, onDone }: { assets: Asset[]; kycOk: boole
 
   return (
     <section className="card">
-      <h3 className="card__title">Withdraw</h3>
+      <h2 className="card__title">Withdraw</h2>
       {!kycOk && <div className="formmsg formmsg--warn">Identity verification is required before withdrawing. Verify above.</div>}
       <form className="form" onSubmit={submit}>
         <label className="field field--stack">

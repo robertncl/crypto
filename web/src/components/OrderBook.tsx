@@ -48,7 +48,7 @@ export function OrderBook({ market, onPickPrice, fetchDepth }: {
   return (
     <section className="panel panel--book" aria-label="Order book">
       <header className="panel__head">
-        <h3>Order Book</h3>
+        <h2>Order Book</h2>
       </header>
       <div className="book">
         <div className="book__cols muted">
