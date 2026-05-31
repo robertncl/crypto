@@ -1,0 +1,32 @@
+# Keep the build context small and avoid baking local artifacts/secrets.
+.git
+.github
+docs
+README.md
+
+# Node / Vite (reinstalled and rebuilt inside the image)
+**/node_modules
+web/dist
+web/.vite
+*.tsbuildinfo
+
+# Go build outputs
+/nebula
+backend/nebula
+backend/exchange-server
+*.test
+
+# Local runtime database (SQLite + WAL)
+*.db
+*.db-shm
+*.db-wal
+
+# Logs / env
+*.log
+.env
+.env.local
+
+# Editors / OS
+.DS_Store
+.idea
+.vscode

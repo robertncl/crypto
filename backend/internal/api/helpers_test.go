@@ -96,7 +96,7 @@ func TestDecode(t *testing.T) {
 func TestQueryInt(t *testing.T) {
 	mk := func(qs string) *http.Request { return httptest.NewRequest("GET", "/?"+qs, nil) }
 	cases := []struct {
-		qs            string
+		qs             string
 		def, max, want int
 	}{
 		{"limit=10", 5, 100, 10},
