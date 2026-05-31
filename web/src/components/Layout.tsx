@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../state/auth";
 
@@ -49,7 +50,9 @@ export function Layout() {
         </div>
       </header>
       <main className="content" id="content" tabIndex={-1}>
-        <Outlet />
+        <Suspense fallback={<div className="empty pad">Loading…</div>}>
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   );

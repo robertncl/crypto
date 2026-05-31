@@ -120,14 +120,25 @@ func (s *Server) mountStatic(r chi.Router) {
 		return
 	}
 	fs := http.FileServer(http.Dir(dist))
-	r.Get("/*", func(w http.ResponseWriter, req *http.Request) {
+	serve := func(w http.ResponseWriter, req *http.Request) {
 		path := filepath.Join(dist, filepath.Clean(req.URL.Path))
 		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			// Vite emits content-hashed files under /assets, so they're safe to
+			// cache forever; everything else (and the HTML shell) must revalidate
+			// so a new deploy's asset references are picked up immediately.
+			if strings.HasPrefix(req.URL.Path, "/assets/") {
+				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			} else {
+				w.Header().Set("Cache-Control", "no-cache")
+			}
 			fs.ServeHTTP(w, req)
 			return
 		}
+		w.Header().Set("Cache-Control", "no-cache")
 		http.ServeFile(w, req, filepath.Join(dist, "index.html"))
-	})
+	}
+	r.Get("/*", serve)
+	r.Head("/*", serve) // CDNs / health checks may probe with HEAD
 }
 
 // ---------- shared helpers ----------
