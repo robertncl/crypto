@@ -42,6 +42,7 @@ export function Futures() {
 
   return (
     <div className="terminal">
+      <h1 className="visually-hidden">{pm.symbol} perpetual futures</h1>
       <div className="terminal__ticker perp-ticker">
         <TickerBar market={market} />
         <FundingBar symbol={pm.symbol} />

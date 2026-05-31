@@ -57,7 +57,7 @@ export function Markets() {
               <th scope="col" className="r">24h High</th>
               <th scope="col" className="r">24h Low</th>
               <th scope="col" className="r">24h Volume</th>
-              <th></th>
+              <th aria-label="Actions"></th>
             </tr>
           </thead>
           <tbody>
@@ -102,7 +102,7 @@ export function Markets() {
                   <th scope="col" className="r">24h Change</th>
                   <th scope="col" className="r">Index</th>
                   <th scope="col" className="r">Max Leverage</th>
-                  <th></th>
+                  <th aria-label="Actions"></th>
                 </tr>
               </thead>
               <tbody>

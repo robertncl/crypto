@@ -41,7 +41,7 @@ export function Wallet() {
     return (
       <div className="page">
         <div className="card pad center">
-          <h2>Your wallet</h2>
+          <h1>Your wallet</h1>
           <p className="muted">Log in to view balances, deposit and withdraw.</p>
           <Link to="/login" className="btn btn--primary">Log in</Link>
         </div>
@@ -51,6 +51,7 @@ export function Wallet() {
 
   return (
     <div className="page page--wallet">
+      <h1 className="visually-hidden">Wallet</h1>
       <div className="wallet-header card">
         <div>
           <div className="muted">Estimated Portfolio Value</div>

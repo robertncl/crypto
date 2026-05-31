@@ -30,6 +30,7 @@ export function Trade() {
 
   return (
     <div className="terminal">
+      <h1 className="visually-hidden">{market.base}/{market.quote} spot trading</h1>
       <div className="terminal__ticker"><TickerBar market={market} /></div>
       <div className="terminal__chart"><Chart market={market} /></div>
       <div className="terminal__book"><OrderBook market={market} onPickPrice={setPickedPrice} /></div>
