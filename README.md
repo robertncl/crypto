@@ -127,11 +127,18 @@ Open **http://localhost:5173**.
 
 ```sh
 make build         # builds the SPA, then compiles ./nebula with no external deps
-./nebula           # serves the API, WebSocket, AND the built UI on one port
+make run           # runs ./nebula in local dev mode on :8080
 ```
 
 Open **http://localhost:8080**.
 
+> **On the JWT secret:** the server refuses to start with the insecure default
+> secret unless it's told this is local dev. `make run` passes `DEV=true` for you.
+> Running the binary directly therefore needs one of:
+> ```sh
+> DEV=true ./nebula                              # local
+> JWT_SECRET=$(openssl rand -hex 32) ./nebula    # secured path (real deployments)
+> ```
 > Run the binary from the repo root so it finds `web/dist`, or set `WEB_DIR` to
 > the built SPA directory.
 

@@ -3,6 +3,17 @@
 GO ?= $(shell command -v go 2>/dev/null || echo $(HOME)/.local/go/bin/go)
 ADDR ?= :8080
 
+# The server refuses the insecure default JWT secret unless DEV=true. By default
+# the run targets use local dev mode. Pass a real secret to exercise the secured
+# production path instead, e.g.:
+#   make run JWT_SECRET=$(openssl rand -hex 32)
+JWT_SECRET ?=
+ifeq ($(strip $(JWT_SECRET)),)
+RUN_ENV := DEV=true
+else
+RUN_ENV := JWT_SECRET=$(JWT_SECRET)
+endif
+
 .PHONY: help
 help:
 	@echo "Nebula exchange — common tasks:"
@@ -14,6 +25,9 @@ help:
 	@echo "  make run          Run the built ./nebula binary (serves everything on :8080)"
 	@echo "  make test         Run backend tests"
 	@echo "  make clean        Remove build artifacts and the local database"
+	@echo ""
+	@echo "  backend/run use local dev mode by default. To run the secured path:"
+	@echo "    make run JWT_SECRET=\$$(openssl rand -hex 32)"
 
 .PHONY: deps
 deps:
@@ -21,7 +35,7 @@ deps:
 
 .PHONY: backend
 backend:
-	cd backend && DEV=true ADDR=$(ADDR) $(GO) run ./cmd/server
+	cd backend && $(RUN_ENV) ADDR=$(ADDR) $(GO) run ./cmd/server
 
 .PHONY: web
 web:
@@ -44,7 +58,7 @@ build: build-web
 
 .PHONY: run
 run:
-	DEV=true ./nebula   # local demo; set a strong JWT_SECRET (and omit DEV) for real deployments
+	$(RUN_ENV) ./nebula
 
 .PHONY: test
 test:
