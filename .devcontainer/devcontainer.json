@@ -1,0 +1,56 @@
+{
+  "name": "Nebula Exchange",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+
+  // Mount the repo into /workspace and persist Go modules + Node modules as volumes
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
+  "mounts": [
+    "source=nebula-gomodcache,target=/home/vscode/go/pkg/mod,type=volume",
+    "source=nebula-gobincache,target=/home/vscode/go/bin,type=volume",
+    "source=nebula-nodemodules,target=/workspace/web/node_modules,type=volume",
+    "source=nebula-data,target=/data,type=volume"
+  ],
+
+  "remoteUser": "vscode",
+
+  // Forward backend API + Vite dev server
+  "forwardPorts": [8080, 5173],
+  "portsAttributes": {
+    "8080": { "label": "Nebula API", "onAutoForward": "notify" },
+    "5173": { "label": "Vite dev server", "onAutoForward": "openBrowser" }
+  },
+
+  "postCreateCommand": "cd /workspace/backend && go mod download ; cd /workspace/web && npm ci",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.go",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-vscode.vscode-typescript-next",
+        "bradlc.vscode-tailwindcss"
+      ],
+      "settings": {
+        "go.gopath": "/home/vscode/go",
+        "go.toolsManagement.autoUpdate": true,
+        "[go]": {
+          "editor.formatOnSave": true,
+          "editor.defaultFormatter": "golang.go"
+        },
+        "[typescript]": {
+          "editor.formatOnSave": true,
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        },
+        "[typescriptreact]": {
+          "editor.formatOnSave": true,
+          "editor.defaultFormatter": "esbenp.prettier-vscode"
+        }
+      }
+    }
+  }
+}
