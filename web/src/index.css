@@ -1,27 +1,55 @@
 /* ============================================================
-   Nebula Exchange — dark trading theme
+   Nebula Exchange — dark neumorphism (soft UI) theme
+
+   Core idea: the page background and every "raised" surface share
+   the SAME clay tone. Elements are defined by a dual shadow — a dark
+   drop shadow (down-right) plus a faint light highlight (up-left) —
+   rather than by fills or borders. Pressed/recessed elements (inputs,
+   selected toggles) use the same shadows turned `inset`.
    ============================================================ */
 
 :root {
-  --bg: #0b0e11;
-  --bg-elev: #12161c;
-  --panel: #161a1e;
-  --panel-2: #1e2329;
-  --border: #2b3139;
-  --border-soft: #21262d;
+  /* clay base — page + raised surfaces share this so edges come from shadow */
+  --bg: #1b1f26;
+  --bg-elev: #1b1f26;
+  --panel: #1b1f26;
+  --panel-2: #181c22;            /* legacy alias → well tone */
+  --well: #181c22;              /* recessed surfaces sit slightly darker */
+
+  /* neumorphism shadow tones */
+  --nm-dark: #0e1116;            /* drop shadow  (down-right) */
+  --nm-light: #272d37;           /* highlight    (up-left)   */
+
+  /* engraved hairline dividers (a dark line + light line = a groove) */
+  --divider: rgba(0, 0, 0, 0.38);
+  --divider-hi: rgba(255, 255, 255, 0.04);
+
+  /* legacy edge vars — neutralized; soft UI defines edges with shadow */
+  --border: transparent;
+  --border-soft: transparent;
+
   --text: #eaecef;
-  --muted: #848e9c;
-  --muted-2: #5e6673;
+  --muted: #8b95a4;             /* lifted for AA on the lighter clay base */
+  --muted-2: #69727f;
   --up: #0ecb81;
-  --up-soft: rgba(14, 203, 129, 0.14);
+  --up-soft: rgba(14, 203, 129, 0.16);
   --down: #f6465d;
-  --down-soft: rgba(246, 70, 93, 0.14);
+  --down-soft: rgba(246, 70, 93, 0.16);
   --accent: #fcd535;
   --accent-ink: #0b0e11;
-  --radius: 10px;
-  --radius-sm: 7px;
-  --gap: 8px;
+
+  --radius: 16px;
+  --radius-sm: 11px;
+  --gap: 14px;
   --topbar-h: 56px;
+
+  /* reusable soft-shadow recipes (layered light + dark) */
+  --nm-raised:    5px 5px 12px var(--nm-dark), -5px -5px 12px var(--nm-light);
+  --nm-raised-sm: 3px 3px 7px  var(--nm-dark), -3px -3px 7px  var(--nm-light);
+  --nm-raised-lg: 9px 9px 22px var(--nm-dark), -9px -9px 22px var(--nm-light);
+  --nm-inset:     inset 3px 3px 7px var(--nm-dark), inset -3px -3px 7px var(--nm-light);
+  --nm-inset-sm:  inset 2px 2px 5px var(--nm-dark), inset -2px -2px 5px var(--nm-light);
+
   --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Roboto Mono", Menlo, Consolas, monospace;
   --sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color-scheme: dark;
@@ -69,6 +97,7 @@ input, select { font-family: inherit; }
   padding: 8px 14px;
   border-radius: var(--radius-sm);
   font-weight: 700;
+  box-shadow: var(--nm-raised);
   transform: translateY(-160%);
   transition: transform 0.15s;
 }
@@ -99,10 +128,10 @@ input, select { font-family: inherit; }
   scrollbar-gutter: stable;
   overscroll-behavior: contain;
   scrollbar-width: thin;                          /* Firefox */
-  scrollbar-color: var(--border) transparent;     /* Firefox */
+  scrollbar-color: var(--nm-light) transparent;   /* Firefox */
 }
-.scroll::-webkit-scrollbar { inline-size: 8px; block-size: 8px; }
-.scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.scroll::-webkit-scrollbar { inline-size: 9px; block-size: 9px; }
+.scroll::-webkit-scrollbar-thumb { background: var(--nm-light); border-radius: 8px; border: 2px solid var(--bg); }
 .scroll::-webkit-scrollbar-track { background: transparent; }
 
 /* --muted (not --muted-2) for empty states so the contrast clears WCAG AA. */
@@ -128,9 +157,9 @@ input, select { font-family: inherit; }
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding-inline: 16px;
-  background: var(--bg-elev);
-  border-block-end: 1px solid var(--border);
+  padding-inline: 18px;
+  background: var(--bg);
+  box-shadow: 0 6px 20px -8px var(--nm-dark);
   position: sticky;
   inset-block-start: 0;
   z-index: 20;
@@ -140,16 +169,16 @@ input, select { font-family: inherit; }
 .logo__mark { color: var(--accent); font-size: 18px; }
 .logo__name { letter-spacing: 0.3px; }
 
-.topnav { display: flex; gap: 4px; }
+.topnav { display: flex; gap: 6px; }
 .topnav a {
-  padding: 7px 12px;
+  padding: 8px 14px;
   border-radius: var(--radius-sm);
   color: var(--muted);
   font-weight: 500;
-  transition: color 0.15s, background 0.15s;
+  transition: color 0.15s, box-shadow 0.15s;
 }
 .topnav a:hover { color: var(--text); }
-.topnav a.active { color: var(--text); background: var(--panel-2); }
+.topnav a.active { color: var(--accent); background: var(--bg); box-shadow: var(--nm-raised-sm); }
 
 .topbar__account { display: flex; align-items: center; gap: 12px; }
 .topbar__email { color: var(--muted); font-size: 12px; }
@@ -160,33 +189,39 @@ input, select { font-family: inherit; }
    Buttons / badges / status
    ============================================================ */
 .btn {
-  border: 1px solid var(--border);
-  background: var(--panel-2);
+  border: 0;
+  background: var(--bg);
   color: var(--text);
-  padding: 8px 14px;
+  padding: 9px 16px;
   border-radius: var(--radius-sm);
   font-weight: 600;
   font-size: 13px;
-  transition: filter 0.15s, background 0.15s, opacity 0.15s;
+  box-shadow: var(--nm-raised-sm);
+  transition: box-shadow 0.18s, transform 0.06s, color 0.15s, opacity 0.15s, filter 0.15s;
 }
-.btn:hover { filter: brightness(1.15); }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn--ghost { background: transparent; }
-.btn--primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-.btn--buy { background: var(--up); color: #06281c; border-color: var(--up); }
-.btn--sell { background: var(--down); color: #2a0810; border-color: var(--down); }
-.btn--block { inline-size: 100%; padding-block: 11px; }
-.btn--mini { padding: 4px 9px; font-size: 11px; font-weight: 600; }
+.btn:hover:not(:disabled) { box-shadow: var(--nm-raised); color: var(--text); }
+.btn:active:not(:disabled) { box-shadow: var(--nm-inset-sm); transform: translateY(1px); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: var(--nm-inset-sm); }
+.btn--ghost { background: transparent; box-shadow: none; }
+.btn--ghost:hover:not(:disabled) { box-shadow: var(--nm-raised-sm); }
+.btn--primary { background: var(--accent); color: var(--accent-ink); }
+.btn--primary:hover:not(:disabled) { filter: brightness(1.04); box-shadow: var(--nm-raised), 0 0 20px -4px color-mix(in oklab, var(--accent) 60%, transparent); }
+.btn--buy { background: var(--up); color: #06281c; }
+.btn--buy:hover:not(:disabled) { filter: brightness(1.05); box-shadow: var(--nm-raised), 0 0 20px -4px color-mix(in oklab, var(--up) 55%, transparent); }
+.btn--sell { background: var(--down); color: #2a0810; }
+.btn--sell:hover:not(:disabled) { filter: brightness(1.05); box-shadow: var(--nm-raised), 0 0 20px -4px color-mix(in oklab, var(--down) 55%, transparent); }
+.btn--block { inline-size: 100%; padding-block: 12px; }
+.btn--mini { padding: 5px 11px; font-size: 11px; font-weight: 600; }
 
 .badge {
   font-size: 10.5px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase;
-  padding: 2px 7px; border-radius: 5px; background: var(--panel-2); color: var(--muted);
-  border: 1px solid var(--border);
+  padding: 3px 8px; border-radius: 7px; background: var(--well); color: var(--muted);
+  box-shadow: var(--nm-inset-sm);
 }
-.badge--warn { color: var(--accent); border-color: rgba(252, 213, 53, 0.3); }
-.badge--ok { color: var(--up); border-color: rgba(14, 203, 129, 0.3); }
+.badge--warn { color: var(--accent); }
+.badge--ok { color: var(--up); }
 
-.pill { background: var(--panel-2); border-radius: 9px; padding: 0 6px; font-size: 10px; margin-inline-start: 4px; }
+.pill { background: var(--well); box-shadow: var(--nm-inset-sm); border-radius: 9px; padding: 1px 7px; font-size: 10px; margin-inline-start: 4px; }
 
 .status { font-size: 11px; font-weight: 600; text-transform: capitalize; }
 .status--open, .status--partial { color: var(--accent); }
@@ -195,12 +230,12 @@ input, select { font-family: inherit; }
 .status--pending { color: var(--accent); }
 
 /* ============================================================
-   Panels & cards
+   Panels & cards — the signature raised clay tiles
    ============================================================ */
 .panel {
-  background: var(--panel);
-  border: 1px solid var(--border-soft);
+  background: var(--bg);
   border-radius: var(--radius);
+  box-shadow: var(--nm-raised);
   display: flex;
   flex-direction: column;
   min-block-size: 0;
@@ -208,16 +243,18 @@ input, select { font-family: inherit; }
 }
 .panel__head {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 12px; border-block-end: 1px solid var(--border-soft);
+  padding: 11px 14px;
+  border-block-end: 1px solid var(--divider);
+  box-shadow: 0 1px 0 var(--divider-hi);
 }
 .panel__head h2 { font-size: 13px; font-weight: 600; }
 .panel__head--chart { padding-block: 8px; }
 
 .card {
-  background: var(--panel);
-  border: 1px solid var(--border-soft);
+  background: var(--bg);
   border-radius: var(--radius);
-  padding: 16px;
+  box-shadow: var(--nm-raised);
+  padding: 18px;
 }
 .card__title { font-size: 14px; margin-block-end: 12px; }
 
@@ -244,14 +281,15 @@ input, select { font-family: inherit; }
 .terminal__orders { grid-area: orders; min-block-size: 0; }
 .terminal > div { min-inline-size: 0; }
 
-/* High-frequency panels: isolate reflow to the panel subtree. */
-.panel--book, .panel--trades { contain: layout style paint; }
+/* High-frequency panels: isolate reflow to the panel subtree.
+   (layout+style only — `paint` would clip the panel's outset soft shadow) */
+.panel--book, .panel--trades { contain: layout style; }
 
 /* ---- ticker bar ---- */
 .tickerbar {
   display: flex; align-items: center; gap: 24px;
-  background: var(--panel); border: 1px solid var(--border-soft);
-  border-radius: var(--radius); padding: 8px 16px; overflow-x: auto;
+  background: var(--bg); box-shadow: var(--nm-raised);
+  border-radius: var(--radius); padding: 10px 18px; overflow-x: auto;
 }
 .tickerbar__symbol { display: flex; align-items: center; gap: 8px; }
 .tickerbar__pair { font-size: 17px; font-weight: 700; }
@@ -263,26 +301,27 @@ input, select { font-family: inherit; }
 /* ---- chart ---- */
 .panel--chart { padding-block-end: 4px; }
 .chart { flex: 1; min-block-size: 0; inline-size: 100%; }
-.seg { display: inline-flex; gap: 2px; background: var(--panel-2); padding: 2px; border-radius: var(--radius-sm); }
+.seg { display: inline-flex; gap: 4px; background: var(--bg); padding: 4px; border-radius: var(--radius-sm); box-shadow: var(--nm-inset-sm); }
 .seg__btn {
   border: 0; background: transparent; color: var(--muted);
-  padding: 4px 10px; border-radius: 5px; font-size: 12px; font-weight: 600;
+  padding: 5px 11px; border-radius: 8px; font-size: 12px; font-weight: 600;
+  transition: box-shadow 0.15s, color 0.15s;
 }
 .seg__btn:hover { color: var(--text); }
-.seg__btn.is-active { background: var(--panel); color: var(--accent); }
+.seg__btn.is-active { background: var(--bg); color: var(--accent); box-shadow: var(--nm-raised-sm); }
 
 /* ---- order book ---- */
 .book { display: flex; flex-direction: column; min-block-size: 0; flex: 1; font-family: var(--mono); }
 .book__cols, .tbl__head {
   display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;
-  padding: 6px 12px; font-size: 11px; color: var(--muted);
-  border-block-end: 1px solid var(--border-soft); font-family: var(--sans);
+  padding: 6px 14px; font-size: 11px; color: var(--muted);
+  border-block-end: 1px solid var(--divider); font-family: var(--sans);
 }
 .book__side { flex: 1; min-block-size: 0; display: flex; flex-direction: column; }
 .book__side--asks { justify-content: flex-end; }
 .book__row {
   position: relative; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;
-  padding: 2.5px 12px; border: 0; background: transparent; color: var(--text);
+  padding: 2.5px 14px; border: 0; background: transparent; color: var(--text);
   font-size: 12px; text-align: start; inline-size: 100%; font-variant-numeric: tabular-nums;
 }
 .book__row > span { position: relative; z-index: 1; }
@@ -292,8 +331,8 @@ input, select { font-family: inherit; }
 .book__bar--bid { background: var(--up-soft); }
 .book__spread {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 6px 12px; border-block: 1px solid var(--border-soft);
-  font-size: 12px; background: var(--panel-2);
+  padding: 7px 14px; margin: 6px 10px; border-radius: var(--radius-sm);
+  font-size: 12px; background: var(--well); box-shadow: var(--nm-inset-sm);
 }
 .book__spread-val { font-size: 15px; font-weight: 700; font-family: var(--mono); }
 
@@ -305,47 +344,51 @@ input, select { font-family: inherit; }
 .tbl__body { flex: 1; min-block-size: 0; }
 .tbl__row {
   display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;
-  padding: 2.5px 12px; font-size: 12px; font-variant-numeric: tabular-nums;
+  padding: 2.5px 14px; font-size: 12px; font-variant-numeric: tabular-nums;
 }
 .tbl__row:hover { background: rgba(255, 255, 255, 0.03); }
 
 /* ---- order form ---- */
-.panel--form { padding: 12px; gap: 12px; overflow-y: auto; }
-.sidetabs { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--border); }
-.sidetab { border: 0; background: var(--panel-2); color: var(--muted); padding: 9px; font-weight: 700; }
-.sidetab--buy.is-active { background: var(--up-soft); color: var(--up); }
-.sidetab--sell.is-active { background: var(--down-soft); color: var(--down); }
+.panel--form { padding: 14px; gap: 14px; overflow-y: auto; }
+.sidetabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; border-radius: var(--radius-sm); padding: 5px; background: var(--bg); box-shadow: var(--nm-inset-sm); }
+.sidetab { border: 0; background: transparent; color: var(--muted); padding: 9px; font-weight: 700; border-radius: 8px; transition: box-shadow 0.15s, color 0.15s, background 0.15s; }
+.sidetab--buy.is-active { background: var(--up-soft); color: var(--up); box-shadow: var(--nm-raised-sm); }
+.sidetab--sell.is-active { background: var(--down-soft); color: var(--down); box-shadow: var(--nm-raised-sm); }
 .seg--type { align-self: flex-start; }
 
-.form { display: flex; flex-direction: column; gap: 10px; }
+.form { display: flex; flex-direction: column; gap: 12px; }
 .form__avail { font-size: 12px; }
 .form__avail strong { color: var(--text); }
-.field { display: flex; flex-direction: column; gap: 5px; }
+.field { display: flex; flex-direction: column; gap: 6px; }
 .field__label { font-size: 11px; color: var(--muted); }
 .field__input {
-  display: flex; align-items: center; background: var(--panel-2);
-  border: 1px solid var(--border); border-radius: var(--radius-sm); padding-inline-end: 10px;
+  display: flex; align-items: center; background: var(--well);
+  border: 1.5px solid transparent; border-radius: var(--radius-sm); padding-inline-end: 12px;
+  box-shadow: var(--nm-inset-sm); transition: border-color 0.15s;
 }
-.field__input input { flex: 1; min-inline-size: 0; }
 .field__input:focus-within { border-color: var(--accent); }
 .field__suffix { color: var(--muted); font-size: 12px; }
 .field input, .field select {
-  background: var(--panel-2); border: 1px solid var(--border); color: var(--text);
-  border-radius: var(--radius-sm); padding: 9px 10px; font-size: 13px; inline-size: 100%;
-  font-variant-numeric: tabular-nums;
+  background: var(--well); border: 1.5px solid transparent; color: var(--text);
+  border-radius: var(--radius-sm); padding: 10px 12px; font-size: 13px; inline-size: 100%;
+  box-shadow: var(--nm-inset-sm); font-variant-numeric: tabular-nums;
+  transition: border-color 0.15s;
 }
-.field__input input { background: transparent; border: 0; padding: 9px 10px; }
-.field input:focus, .field select:focus { border-color: var(--accent); }
+.field input:focus, .field select:focus { border-color: var(--accent); outline: none; }
 /* Validation feedback only after the user has interacted. */
 .field input:user-invalid { border-color: var(--down); }
+/* The wrapped input sits transparently inside .field__input's own well.
+   (declared after `.field input` so it wins the equal-specificity tie) */
+.field__input input { flex: 1; min-inline-size: 0; background: transparent; border: 0; padding: 10px 12px; box-shadow: none; }
 
-.pcts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-.pct { border: 1px solid var(--border); background: var(--panel-2); color: var(--muted); border-radius: 5px; padding: 5px; font-size: 11px; font-weight: 600; }
-.pct:hover { color: var(--text); border-color: var(--accent); }
+.pcts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.pct { border: 0; background: var(--bg); color: var(--muted); border-radius: 8px; padding: 6px; font-size: 11px; font-weight: 600; box-shadow: var(--nm-raised-sm); transition: box-shadow 0.15s, color 0.15s, transform 0.06s; }
+.pct:hover { color: var(--text); }
+.pct:active { box-shadow: var(--nm-inset-sm); color: var(--accent); transform: translateY(1px); }
 
 .form__row { display: flex; justify-content: space-between; font-size: 12px; }
 .form__hint { font-size: 11px; }
-.formmsg { padding: 8px 10px; border-radius: var(--radius-sm); font-size: 12px; }
+.formmsg { padding: 9px 12px; border-radius: var(--radius-sm); font-size: 12px; box-shadow: var(--nm-inset-sm); }
 .formmsg--ok { background: var(--up-soft); color: var(--up); }
 .formmsg--err { background: var(--down-soft); color: var(--down); }
 .formmsg--warn { background: rgba(252, 213, 53, 0.12); color: var(--accent); }
@@ -358,19 +401,21 @@ input, select { font-family: inherit; }
 .lev { display: flex; flex-direction: column; gap: 6px; }
 .lev__head { display: flex; align-items: center; justify-content: space-between; }
 .lev__val { font-weight: 700; color: var(--accent); }
-.lev__opts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.lev__opts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
 .lev__btn {
-  border: 1px solid var(--border); background: var(--panel-2); color: var(--muted);
-  border-radius: 5px; padding: 5px 0; font-size: 11px; font-weight: 600;
+  border: 0; background: var(--bg); color: var(--muted);
+  border-radius: 8px; padding: 6px 0; font-size: 11px; font-weight: 600;
+  box-shadow: var(--nm-raised-sm); transition: box-shadow 0.15s, color 0.15s;
 }
 .lev__btn:hover { color: var(--text); }
-.lev__btn.is-active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+/* selected leverage reads as "pressed in" (inset) */
+.lev__btn.is-active { background: var(--accent); color: var(--accent-ink); box-shadow: var(--nm-inset-sm); }
 
 .perp-ticker { display: flex; flex-direction: column; gap: var(--gap); }
 .fundingbar {
   display: flex; align-items: center; gap: 22px;
-  background: var(--panel); border: 1px solid var(--border-soft);
-  border-radius: var(--radius); padding: 6px 16px; overflow-x: auto;
+  background: var(--bg); box-shadow: var(--nm-raised);
+  border-radius: var(--radius); padding: 8px 18px; overflow-x: auto;
 }
 
 /* ============================================================
@@ -379,34 +424,35 @@ input, select { font-family: inherit; }
 .dtable { inline-size: 100%; border-collapse: collapse; font-size: 12px; }
 .dtable th {
   text-align: start; color: var(--muted); font-weight: 500; font-size: 11px;
-  padding: 8px 12px; position: sticky; inset-block-start: 0; background: var(--panel);
-  border-block-end: 1px solid var(--border-soft); z-index: 1;
+  padding: 8px 14px; position: sticky; inset-block-start: 0; background: var(--bg);
+  border-block-end: 1px solid var(--divider); z-index: 1;
 }
-.dtable td { padding: 7px 12px; border-block-end: 1px solid var(--border-soft); white-space: nowrap; }
+.dtable td { padding: 8px 14px; border-block-end: 1px solid var(--divider); white-space: nowrap; }
 .dtable tbody tr:hover { background: rgba(255, 255, 255, 0.03); }
 .dtable .r { text-align: end; }
 .rowlink { cursor: pointer; }
 
 .paircell { display: flex; align-items: center; gap: 9px; }
 .paircell__icon {
-  inline-size: 24px; block-size: 24px; border-radius: 50%; display: grid; place-items: center;
+  inline-size: 26px; block-size: 26px; border-radius: 50%; display: grid; place-items: center;
   background: linear-gradient(135deg, var(--accent), #f0a020); color: var(--accent-ink);
-  font-weight: 700; font-size: 12px;
+  font-weight: 700; font-size: 12px; box-shadow: var(--nm-raised-sm);
 }
 
 /* ============================================================
    Markets page
    ============================================================ */
-.page { padding: 22px; max-inline-size: 1280px; margin-inline: auto; }
-.markets-hero { display: flex; align-items: flex-end; justify-content: space-between; margin-block-end: 18px; gap: 16px; }
+.page { padding: 24px; max-inline-size: 1280px; margin-inline: auto; }
+.markets-hero { display: flex; align-items: flex-end; justify-content: space-between; margin-block-end: 20px; gap: 16px; }
 .markets-hero h1 { font-size: 26px; }
 .search {
-  background: var(--panel); border: 1px solid var(--border); color: var(--text);
-  border-radius: 999px; padding: 9px 16px; inline-size: 260px; max-inline-size: 50vw;
+  background: var(--well); border: 1.5px solid transparent; color: var(--text);
+  border-radius: 999px; padding: 11px 18px; inline-size: 260px; max-inline-size: 50vw;
+  box-shadow: var(--nm-inset-sm); transition: border-color 0.15s;
 }
-.search:focus { border-color: var(--accent); }
-.dtable--markets td { padding-block: 11px; }
-.markets-subhead { font-size: 18px; margin: 26px 0 12px; display: flex; align-items: center; gap: 10px; }
+.search:focus { border-color: var(--accent); outline: none; }
+.dtable--markets td { padding-block: 12px; }
+.markets-subhead { font-size: 18px; margin: 28px 0 14px; display: flex; align-items: center; gap: 10px; }
 
 /* ============================================================
    Wallet page
@@ -414,19 +460,19 @@ input, select { font-family: inherit; }
 .page--wallet { max-inline-size: 1180px; }
 .wallet-header {
   display: flex; align-items: center; justify-content: space-between;
-  margin-block-end: 16px;
+  margin-block-end: 18px;
 }
 .wallet-header__value { font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .wallet-grid {
-  display: grid; gap: 16px;
+  display: grid; gap: 18px;
   grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
 }
 .wallet-grid > .card:first-child,
 .wallet-txns { grid-column: 1 / -1; }
 .depositaddr { margin-block: 12px; display: flex; flex-direction: column; gap: 6px; }
 .depositaddr__row {
-  display: flex; align-items: center; gap: 8px; background: var(--panel-2);
-  border: 1px dashed var(--border); border-radius: var(--radius-sm); padding: 9px 12px;
+  display: flex; align-items: center; gap: 8px; background: var(--well);
+  border-radius: var(--radius-sm); padding: 11px 14px; box-shadow: var(--nm-inset-sm);
 }
 .depositaddr__row code { flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; font-family: var(--mono); font-size: 12px; }
 
@@ -435,8 +481,8 @@ input, select { font-family: inherit; }
    ============================================================ */
 .authpage { display: grid; place-items: center; min-block-size: calc(100dvh - var(--topbar-h)); padding: 20px; }
 .authcard {
-  inline-size: 100%; max-inline-size: 400px; background: var(--panel);
-  border: 1px solid var(--border-soft); border-radius: 14px; padding: 30px;
+  inline-size: 100%; max-inline-size: 400px; background: var(--bg);
+  border-radius: var(--radius); padding: 34px; box-shadow: var(--nm-raised-lg);
   display: flex; flex-direction: column; gap: 14px;
 }
 .authcard__title { font-size: 22px; }
