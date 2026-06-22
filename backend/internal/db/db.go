@@ -144,9 +144,9 @@ func seed(conn *sql.DB) error {
 }
 
 type seedEarn struct {
-	id, asset, kind     string
-	apr                 string
-	termDays            int
+	id, asset, kind      string
+	apr                  string
+	termDays             int
 	minAmount, maxAmount string
 }
 
