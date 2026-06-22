@@ -19,6 +19,7 @@ import (
 	"cryptoex/internal/config"
 	"cryptoex/internal/db"
 	"cryptoex/internal/derivatives"
+	"cryptoex/internal/earn"
 	"cryptoex/internal/engine"
 	"cryptoex/internal/market"
 	"cryptoex/internal/store"
@@ -77,6 +78,12 @@ func main() {
 	go md.Start(ctx, markets)
 	go perpMgr.Start(ctx)
 
+	earnSvc := earn.NewService(st, hub, int64(cfg.EarnAccrue))
+	if err := earnSvc.Init(); err != nil {
+		log.Fatalf("init earn: %v", err)
+	}
+	go earnSvc.Start(ctx)
+
 	walletSvc := wallet.NewService(st, hub)
 	authMgr := auth.NewManager(cfg.JWTSecret, cfg.JWTTTLHours)
 
@@ -89,7 +96,7 @@ func main() {
 		}
 	}
 
-	srv := api.NewServer(cfg, st, authMgr, mgr, perpMgr, md, walletSvc, hub)
+	srv := api.NewServer(cfg, st, authMgr, mgr, perpMgr, md, walletSvc, earnSvc, hub)
 	httpServer := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           srv.Router,

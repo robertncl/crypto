@@ -116,7 +116,38 @@ func seed(conn *sql.DB) error {
 			return err
 		}
 	}
+
+	// Earn products: a flexible (redeem-anytime) tier per asset plus a couple of
+	// higher-yield fixed-term tiers. APRs are fractions (0.05 = 5%).
+	earns := []seedEarn{
+		{"USDT-FLEX", "USDT", "flexible", "0.08", 0, "10", "0"},
+		{"USDT-30D", "USDT", "fixed", "0.12", 30, "100", "0"},
+		{"USDT-90D", "USDT", "fixed", "0.165", 90, "100", "0"},
+		{"BTC-FLEX", "BTC", "flexible", "0.025", 0, "0.001", "0"},
+		{"BTC-90D", "BTC", "fixed", "0.045", 90, "0.01", "0"},
+		{"ETH-FLEX", "ETH", "flexible", "0.035", 0, "0.01", "0"},
+		{"ETH-60D", "ETH", "fixed", "0.06", 60, "0.05", "0"},
+		{"SOL-FLEX", "SOL", "flexible", "0.06", 0, "0.1", "0"},
+		{"BNB-FLEX", "BNB", "flexible", "0.05", 0, "0.05", "0"},
+	}
+	for _, e := range earns {
+		if _, err := conn.Exec(
+			`INSERT OR IGNORE INTO earn_products(id,asset,kind,apr,term_days,min_amount,max_amount,status)
+			 VALUES(?,?,?,?,?,?,?,'active')`,
+			e.id, e.asset, e.kind, num.MustParse(e.apr).Raw(), e.termDays,
+			num.MustParse(e.minAmount).Raw(), num.MustParse(e.maxAmount).Raw(),
+		); err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+type seedEarn struct {
+	id, asset, kind     string
+	apr                 string
+	termDays            int
+	minAmount, maxAmount string
 }
 
 type seedPerp struct {

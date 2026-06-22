@@ -168,3 +168,34 @@ CREATE TABLE IF NOT EXISTS perp_orders (
 );
 CREATE INDEX IF NOT EXISTS idx_porders_user   ON perp_orders(user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_porders_market ON perp_orders(market, status);
+
+-- ===================== Earn (savings / staking) =====================
+
+CREATE TABLE IF NOT EXISTS earn_products (
+    id         TEXT PRIMARY KEY,          -- e.g. BTC-FLEX, USDT-30D
+    asset      TEXT NOT NULL,
+    kind       TEXT NOT NULL,             -- flexible | fixed
+    apr        INTEGER NOT NULL,          -- annualized fraction, scaled 1e8
+    term_days  INTEGER NOT NULL DEFAULT 0,
+    min_amount INTEGER NOT NULL DEFAULT 0,
+    max_amount INTEGER NOT NULL DEFAULT 0, -- 0 = uncapped
+    status     TEXT NOT NULL DEFAULT 'active'
+);
+
+CREATE TABLE IF NOT EXISTS earn_positions (
+    id              TEXT PRIMARY KEY,
+    user_id         INTEGER NOT NULL,
+    product_id      TEXT NOT NULL,
+    asset           TEXT NOT NULL,
+    kind            TEXT NOT NULL,
+    principal       INTEGER NOT NULL,
+    apr             INTEGER NOT NULL,
+    accrued_total   INTEGER NOT NULL DEFAULT 0,
+    status          TEXT NOT NULL DEFAULT 'active',
+    start_at        INTEGER NOT NULL,
+    maturity_at     INTEGER NOT NULL DEFAULT 0,
+    last_accrual_at INTEGER NOT NULL,
+    redeemed_at     INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_earn_pos_user   ON earn_positions(user_id, start_at DESC);
+CREATE INDEX IF NOT EXISTS idx_earn_pos_status ON earn_positions(status);

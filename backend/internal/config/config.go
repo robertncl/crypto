@@ -20,6 +20,7 @@ type Config struct {
 	CORSOrigin  string // allowed CORS origin for the SPA dev server
 	WebDir      string // directory of the built SPA to serve (empty = skip)
 	PerpFunding int    // perp funding interval in seconds
+	EarnAccrue  int    // earn interest-accrual interval in seconds
 	Dev         bool   // local development mode (relaxes the JWT-secret guard)
 }
 
@@ -33,6 +34,7 @@ func Load() Config {
 		CORSOrigin:  env("CORS_ORIGIN", "http://localhost:5173"),
 		WebDir:      env("WEB_DIR", "web/dist"),
 		PerpFunding: envInt("PERP_FUNDING_SEC", 60),
+		EarnAccrue:  envInt("EARN_ACCRUE_SEC", 60),
 		Dev:         envBool("DEV", false),
 	}
 }

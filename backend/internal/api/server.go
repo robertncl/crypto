@@ -16,6 +16,7 @@ import (
 	"cryptoex/internal/auth"
 	"cryptoex/internal/config"
 	"cryptoex/internal/derivatives"
+	"cryptoex/internal/earn"
 	"cryptoex/internal/engine"
 	"cryptoex/internal/market"
 	"cryptoex/internal/store"
@@ -40,13 +41,14 @@ type Server struct {
 	perp   *derivatives.Manager
 	md     *market.Service
 	wallet *wallet.Service
+	earn   *earn.Service
 	hub    *ws.Hub
 	Router http.Handler
 }
 
 func NewServer(cfg config.Config, st *store.Store, am *auth.Manager, mgr *engine.Manager,
-	perp *derivatives.Manager, md *market.Service, wal *wallet.Service, hub *ws.Hub) *Server {
-	s := &Server{cfg: cfg, st: st, auth: am, mgr: mgr, perp: perp, md: md, wallet: wal, hub: hub}
+	perp *derivatives.Manager, md *market.Service, wal *wallet.Service, ern *earn.Service, hub *ws.Hub) *Server {
+	s := &Server{cfg: cfg, st: st, auth: am, mgr: mgr, perp: perp, md: md, wallet: wal, earn: ern, hub: hub}
 	s.Router = s.routes()
 	return s
 }
@@ -92,6 +94,9 @@ func (s *Server) routes() http.Handler {
 		r.Get("/perp/markets/{symbol}/depth", s.handlePerpDepth)
 		r.Get("/perp/markets/{symbol}/funding", s.handlePerpFunding)
 
+		// Public earn product catalog.
+		r.Get("/earn/products", s.handleEarnProducts)
+
 		// Authenticated.
 		r.Group(func(r chi.Router) {
 			r.Use(s.auth.Middleware)
@@ -115,6 +120,11 @@ func (s *Server) routes() http.Handler {
 			r.Get("/perp/orders/history", s.handlePerpOrderHistory)
 			r.Get("/perp/positions", s.handlePositions)
 			r.Post("/perp/positions/{symbol}/close", s.handleClosePosition)
+
+			// Earn subscriptions.
+			r.Get("/earn/positions", s.handleEarnPositions)
+			r.Post("/earn/subscribe", s.handleEarnSubscribe)
+			r.Post("/earn/positions/{id}/redeem", s.handleEarnRedeem)
 		})
 	})
 
@@ -235,6 +245,14 @@ func writeDomainErr(w http.ResponseWriter, err error) {
 	case errors.Is(err, wallet.ErrBelowMin), errors.Is(err, wallet.ErrInvalidAmount),
 		errors.Is(err, wallet.ErrInvalidAddress), errors.Is(err, wallet.ErrUnknownAsset):
 		writeErr(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, earn.ErrUnknownProduct):
+		writeErr(w, http.StatusNotFound, err.Error())
+	case errors.Is(err, earn.ErrProductInactive), errors.Is(err, earn.ErrInvalidAmount),
+		errors.Is(err, earn.ErrBelowMin), errors.Is(err, earn.ErrAboveMax),
+		errors.Is(err, earn.ErrPositionClosed), errors.Is(err, earn.ErrNotMatured):
+		writeErr(w, http.StatusBadRequest, err.Error())
+	case errors.Is(err, earn.ErrNotOwner):
+		writeErr(w, http.StatusForbidden, err.Error())
 	case errors.Is(err, store.ErrNotFound):
 		writeErr(w, http.StatusNotFound, "not found")
 	default:

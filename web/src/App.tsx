@@ -8,6 +8,7 @@ import { Layout } from "./components/Layout";
 const Markets = lazy(() => import("./pages/Markets").then((m) => ({ default: m.Markets })));
 const Trade = lazy(() => import("./pages/Trade").then((m) => ({ default: m.Trade })));
 const Futures = lazy(() => import("./pages/Futures").then((m) => ({ default: m.Futures })));
+const Earn = lazy(() => import("./pages/Earn").then((m) => ({ default: m.Earn })));
 const Wallet = lazy(() => import("./pages/Wallet").then((m) => ({ default: m.Wallet })));
 const Login = lazy(() => import("./pages/Login").then((m) => ({ default: m.Login })));
 const Register = lazy(() => import("./pages/Register").then((m) => ({ default: m.Register })));
@@ -23,6 +24,7 @@ export function App() {
           <Route path="/trade/:symbol" element={<Trade />} />
           <Route path="/futures" element={<Navigate to="/futures/BTC-PERP" replace />} />
           <Route path="/futures/:symbol" element={<Futures />} />
+          <Route path="/earn" element={<Earn />} />
           <Route path="/wallet" element={<Wallet />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />

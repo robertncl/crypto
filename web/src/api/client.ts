@@ -5,7 +5,7 @@
 import type {
   AuthResponse, Asset, Balance, Candle, Depth, Market, Order, Side,
   OrderType, Ticker, Trade, User, WalletAddress, WalletTxn,
-  PerpMarket, Position, PerpOrder, FundingInfo,
+  PerpMarket, Position, PerpOrder, FundingInfo, EarnProduct, EarnPosition,
 } from "./types";
 
 let token: string | null = null;
@@ -84,4 +84,11 @@ export const api = {
   withdraw: (asset: string, address: string, amount: string) =>
     request<WalletTxn>("/wallet/withdraw", { method: "POST", body: JSON.stringify({ asset, address, amount }) }),
   walletTxns: () => request<WalletTxn[]>("/wallet/transactions"),
+
+  // earn
+  earnProducts: () => request<EarnProduct[]>("/earn/products"),
+  earnPositions: () => request<EarnPosition[]>("/earn/positions"),
+  earnSubscribe: (productId: string, amount: string) =>
+    request<EarnPosition>("/earn/subscribe", { method: "POST", body: JSON.stringify({ productId, amount }) }),
+  earnRedeem: (id: string) => request<EarnPosition>(`/earn/positions/${id}/redeem`, { method: "POST" }),
 };

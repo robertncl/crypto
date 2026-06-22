@@ -19,11 +19,12 @@ const (
 // privateChannels are user-scoped; the hub topic is suffixed with the client's
 // user id so users only ever receive their own private stream.
 var privateChannels = map[string]bool{
-	"orders":     true,
-	"balances":   true,
-	"walletTxns": true,
-	"perpOrders": true,
-	"positions":  true,
+	"orders":        true,
+	"balances":      true,
+	"walletTxns":    true,
+	"perpOrders":    true,
+	"positions":     true,
+	"earnPositions": true,
 }
 
 // Client is a single WebSocket connection.

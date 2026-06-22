@@ -19,6 +19,7 @@ export function Layout() {
             <NavLink to="/markets">Markets</NavLink>
             <NavLink to="/trade/BTC-USDT">Spot</NavLink>
             <NavLink to="/futures/BTC-PERP">Futures</NavLink>
+            <NavLink to="/earn">Earn</NavLink>
             <NavLink to="/wallet">Wallet</NavLink>
           </nav>
         </div>

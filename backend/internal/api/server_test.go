@@ -12,6 +12,7 @@ import (
 	"cryptoex/internal/config"
 	"cryptoex/internal/db"
 	"cryptoex/internal/derivatives"
+	"cryptoex/internal/earn"
 	"cryptoex/internal/engine"
 	"cryptoex/internal/market"
 	"cryptoex/internal/store"
@@ -43,9 +44,13 @@ func newTestServer(t *testing.T) *Server {
 		t.Fatalf("perp init: %v", err)
 	}
 	wal := wallet.NewService(st, hub)
+	ern := earn.NewService(st, hub, 60)
+	if err := ern.Init(); err != nil {
+		t.Fatalf("earn init: %v", err)
+	}
 	am := auth.NewManager("test-secret", 24)
 	cfg := config.Config{JWTSecret: "test-secret", JWTTTLHours: 24, WebDir: ""}
-	return NewServer(cfg, st, am, mgr, perp, md, wal, hub)
+	return NewServer(cfg, st, am, mgr, perp, md, wal, ern, hub)
 }
 
 func do(t *testing.T, srv *Server, method, path, token, body string) *httptest.ResponseRecorder {

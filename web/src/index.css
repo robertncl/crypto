@@ -477,6 +477,38 @@ input, select { font-family: inherit; }
 .depositaddr__row code { flex: 1; min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; font-family: var(--mono); font-size: 12px; }
 
 /* ============================================================
+   Earn page
+   ============================================================ */
+.page--earn { max-inline-size: 1180px; display: flex; flex-direction: column; gap: 18px; }
+.earn-hero {
+  display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap;
+}
+.earn-hero__title { font-size: 24px; margin: 4px 0 8px; }
+.earn-hero p { max-inline-size: 60ch; }
+.earn-hero__stats { display: flex; gap: 28px; }
+.earn-hero__value { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.earn-grid {
+  display: grid; gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+.earn-card {
+  background: var(--well); border-radius: var(--radius-sm); padding: 16px;
+  box-shadow: var(--nm-inset-sm); display: flex; flex-direction: column; gap: 10px;
+}
+.earn-card__head { display: flex; align-items: center; gap: 12px; }
+.earn-card__asset { font-weight: 700; font-size: 15px; }
+.earn-card__apr { margin-inline-start: auto; text-align: end; }
+.earn-card__aprval { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.badge--soft { color: var(--accent); }
+/* A button styled as an inline link, used for "use max available". */
+.linklike {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--accent); font: inherit; text-decoration: underline;
+}
+.linklike:disabled { color: var(--muted); cursor: default; text-decoration: none; }
+
+/* ============================================================
    Auth page
    ============================================================ */
 .authpage { display: grid; place-items: center; min-block-size: calc(100dvh - var(--topbar-h)); padding: 20px; }

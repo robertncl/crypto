@@ -10,7 +10,7 @@
 
 type Listener = (data: unknown) => void;
 
-const PRIVATE = new Set(["orders", "balances", "walletTxns", "perpOrders", "positions"]);
+const PRIVATE = new Set(["orders", "balances", "walletTxns", "perpOrders", "positions", "earnPositions"]);
 
 interface Sub {
   sendChannel: string; // what we send in the subscribe op

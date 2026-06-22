@@ -196,3 +196,35 @@ export interface FundingInfo {
   intervalSec: number;
   nextFundingTime: number;
 }
+
+// ---------- earn (savings) ----------
+
+export type EarnKind = "flexible" | "fixed";
+export type EarnStatus = "active" | "redeemed";
+
+export interface EarnProduct {
+  id: string;
+  asset: string;
+  kind: EarnKind;
+  apr: string; // annualized fraction, e.g. "0.08" = 8%
+  termDays: number; // 0 for flexible
+  minAmount: string;
+  maxAmount: string; // "0" = uncapped
+  status: string;
+}
+
+export interface EarnPosition {
+  id: string;
+  userId: number;
+  productId: string;
+  asset: string;
+  kind: EarnKind;
+  principal: string;
+  apr: string;
+  accruedTotal: string;
+  status: EarnStatus;
+  startAt: number;
+  maturityAt: number; // 0 for flexible
+  lastAccrualAt: number;
+  redeemedAt: number;
+}
