@@ -14,7 +14,7 @@
 # Stage 1 — build the SPA  #
 ############################
 # -dev variant includes a shell + npm for the build; it is discarded.
-FROM cgr.dev/chainguard/node:latest-dev AS web
+FROM cgr.dev/chainguard/node:latest-dev@sha256:64d0788274a7eb5002e09b77570baeb4f8fa34685f8cbccbcb5a2d073b2550dd AS web
 USER root
 WORKDIR /web
 # Install deps first against the lockfile for reproducible, cacheable builds.
@@ -26,7 +26,7 @@ RUN npm run build   # emits /web/dist (tsc --noEmit && vite build)
 ##############################
 # Stage 2 — build the binary #
 ##############################
-FROM cgr.dev/chainguard/go:latest-dev AS build
+FROM cgr.dev/chainguard/go:latest-dev@sha256:041a53344f009008fdd8ec3d2dba43cc19a83d2b856635f802b09c8e76552b23 AS build
 USER root
 WORKDIR /src
 # Honor the toolchain pinned in go.mod even if the base ships a different Go.
@@ -46,7 +46,7 @@ RUN mkdir -p /out/data
 # Stage 3 — runtime image  #
 ############################
 # Chainguard static: distroless-equivalent, nonroot (uid 65532), with CA certs.
-FROM cgr.dev/chainguard/static:latest
+FROM cgr.dev/chainguard/static:latest@sha256:60582b2ae6074f641094af0f370d4ab241aab271858a66223dcde7eee9f51638
 WORKDIR /app
 COPY --from=build /out/nebula /app/nebula
 COPY --from=build --chown=65532:65532 /out/data /data
