@@ -26,7 +26,7 @@ RUN npm run build   # emits /web/dist (tsc --noEmit && vite build)
 ##############################
 # Stage 2 — build the binary #
 ##############################
-FROM cgr.dev/chainguard/go:latest-dev@sha256:041a53344f009008fdd8ec3d2dba43cc19a83d2b856635f802b09c8e76552b23 AS build
+FROM cgr.dev/chainguard/go:latest-dev@sha256:4f11bc5c6ebe97a7c6753299207785f535a700d9e3a98ffb5fcc5df1e1fedcf3 AS build
 USER root
 WORKDIR /src
 # Honor the toolchain pinned in go.mod even if the base ships a different Go.
