@@ -14,7 +14,7 @@
 # Stage 1 — build the SPA  #
 ############################
 # -dev variant includes a shell + npm for the build; it is discarded.
-FROM cgr.dev/chainguard/node:latest-dev@sha256:64d0788274a7eb5002e09b77570baeb4f8fa34685f8cbccbcb5a2d073b2550dd AS web
+FROM cgr.dev/chainguard/node:latest-dev@sha256:7f240e0b8a76496e6128948e4cfb0c3c145f629ac2b9d3cee3d554b746e82ca3 AS web
 USER root
 WORKDIR /web
 # Install deps first against the lockfile for reproducible, cacheable builds.
