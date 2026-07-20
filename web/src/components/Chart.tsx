@@ -6,6 +6,7 @@ import {
 import { api } from "../api/client";
 import type { Candle, Market } from "../api/types";
 import { useChannel } from "../hooks/useStream";
+import { useTheme } from "../hooks/useTheme";
 import { toNum } from "../utils/format";
 
 const INTERVALS: { label: string; sec: number }[] = [
@@ -17,8 +18,19 @@ const INTERVALS: { label: string; sec: number }[] = [
   { label: "1d", sec: 86400 },
 ];
 
-const UP = "#0ecb81";
-const DOWN = "#f6465d";
+// Reads the live ACME design-system tokens off the root element so the
+// chart follows the light/dark toggle without a lightweight-charts-specific
+// color system of its own.
+function acmeChartColors() {
+  const s = getComputedStyle(document.documentElement);
+  const v = (name: string) => s.getPropertyValue(name).trim();
+  return {
+    up: v("--acme-color-success") || "#22c55e",
+    down: v("--acme-color-danger") || "#c8102e",
+    text: v("--acme-color-text-muted") || "#6c7480",
+    grid: v("--acme-color-border") || "#e4e7eb",
+  };
+}
 
 export function Chart({ market }: { market: Market }) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -26,6 +38,7 @@ export function Chart({ market }: { market: Market }) {
   const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const [interval, setInterval] = useState("15m");
+  const [theme] = useTheme();
 
   const sec = INTERVALS.find((i) => i.label === interval)?.sec ?? 900;
 
@@ -33,23 +46,24 @@ export function Chart({ market }: { market: Market }) {
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
+    const c = acmeChartColors();
     const chart = createChart(el, {
       autoSize: true,
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: "#848e9c",
+        textColor: c.text,
         fontFamily: "inherit",
       },
       grid: {
-        vertLines: { color: "rgba(43,49,57,0.4)" },
-        horzLines: { color: "rgba(43,49,57,0.4)" },
+        vertLines: { color: c.grid },
+        horzLines: { color: c.grid },
       },
       crosshair: { mode: CrosshairMode.Normal },
-      rightPriceScale: { borderColor: "#2b3139" },
-      timeScale: { borderColor: "#2b3139", timeVisible: true, secondsVisible: false },
+      rightPriceScale: { borderColor: c.grid },
+      timeScale: { borderColor: c.grid, timeVisible: true, secondsVisible: false },
     });
     const candles = chart.addSeries(CandlestickSeries, {
-      upColor: UP, downColor: DOWN, borderVisible: false, wickUpColor: UP, wickDownColor: DOWN,
+      upColor: c.up, downColor: c.down, borderVisible: false, wickUpColor: c.up, wickDownColor: c.down,
     });
     const vol = chart.addSeries(HistogramSeries, {
       priceFormat: { type: "volume" },
@@ -68,22 +82,35 @@ export function Chart({ market }: { market: Market }) {
     };
   }, []);
 
+  // Follow the light/dark toggle without recreating the chart/series.
+  useEffect(() => {
+    const c = acmeChartColors();
+    chartRef.current?.applyOptions({
+      layout: { textColor: c.text },
+      grid: { vertLines: { color: c.grid }, horzLines: { color: c.grid } },
+      rightPriceScale: { borderColor: c.grid },
+      timeScale: { borderColor: c.grid },
+    });
+    candleRef.current?.applyOptions({ upColor: c.up, downColor: c.down, wickUpColor: c.up, wickDownColor: c.down });
+  }, [theme]);
+
   // Load historical candles when market or interval changes.
   useEffect(() => {
     let live = true;
     api.candles(market.symbol, interval, 400).then((rows: Candle[]) => {
       if (!live || !candleRef.current || !volRef.current) return;
+      const c = acmeChartColors();
       candleRef.current.setData(
-        rows.map((c) => ({
-          time: c.time as UTCTimestamp,
-          open: toNum(c.open), high: toNum(c.high), low: toNum(c.low), close: toNum(c.close),
+        rows.map((row) => ({
+          time: row.time as UTCTimestamp,
+          open: toNum(row.open), high: toNum(row.high), low: toNum(row.low), close: toNum(row.close),
         })),
       );
       volRef.current.setData(
-        rows.map((c) => ({
-          time: c.time as UTCTimestamp,
-          value: toNum(c.volume),
-          color: toNum(c.close) >= toNum(c.open) ? "rgba(14,203,129,0.4)" : "rgba(246,70,93,0.4)",
+        rows.map((row) => ({
+          time: row.time as UTCTimestamp,
+          value: toNum(row.volume),
+          color: toNum(row.close) >= toNum(row.open) ? `${c.up}66` : `${c.down}66`,
         })),
       );
       chartRef.current?.timeScale().fitContent();
@@ -93,6 +120,7 @@ export function Chart({ market }: { market: Market }) {
 
   // Live candle updates for the selected interval.
   useChannel<Candle>(`kline:${market.symbol}:${sec}`, (c) => {
+    const colors = acmeChartColors();
     candleRef.current?.update({
       time: c.time as UTCTimestamp,
       open: toNum(c.open), high: toNum(c.high), low: toNum(c.low), close: toNum(c.close),
@@ -100,7 +128,7 @@ export function Chart({ market }: { market: Market }) {
     volRef.current?.update({
       time: c.time as UTCTimestamp,
       value: toNum(c.volume),
-      color: toNum(c.close) >= toNum(c.open) ? "rgba(14,203,129,0.4)" : "rgba(246,70,93,0.4)",
+      color: toNum(c.close) >= toNum(c.open) ? `${colors.up}66` : `${colors.down}66`,
     });
   });
 

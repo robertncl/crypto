@@ -63,7 +63,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
           {isRegister ? (
             <>Already have an account? <Link to="/login">Log in</Link></>
           ) : (
-            <>New to Nebula? <Link to="/register">Create an account</Link></>
+            <>New to ACME Exchange? <Link to="/register">Create an account</Link></>
           )}
         </p>
       </form>
