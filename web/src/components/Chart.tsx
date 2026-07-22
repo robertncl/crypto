@@ -29,6 +29,9 @@ function acmeChartColors() {
     down: v("--acme-color-danger") || "#c8102e",
     text: v("--acme-color-text-muted") || "#6c7480",
     grid: v("--acme-color-border") || "#e4e7eb",
+    // Blueprint Blue is the design system's "carries data" color — used
+    // for the crosshair so the chart isn't purely green/red/gray.
+    focus: v("--acme-color-focus") || "#3b82f6",
   };
 }
 
@@ -58,7 +61,11 @@ export function Chart({ market }: { market: Market }) {
         vertLines: { color: c.grid },
         horzLines: { color: c.grid },
       },
-      crosshair: { mode: CrosshairMode.Normal },
+      crosshair: {
+        mode: CrosshairMode.Normal,
+        vertLine: { color: c.focus, labelBackgroundColor: c.focus },
+        horzLine: { color: c.focus, labelBackgroundColor: c.focus },
+      },
       rightPriceScale: { borderColor: c.grid },
       timeScale: { borderColor: c.grid, timeVisible: true, secondsVisible: false },
     });
@@ -88,6 +95,10 @@ export function Chart({ market }: { market: Market }) {
     chartRef.current?.applyOptions({
       layout: { textColor: c.text },
       grid: { vertLines: { color: c.grid }, horzLines: { color: c.grid } },
+      crosshair: {
+        vertLine: { color: c.focus, labelBackgroundColor: c.focus },
+        horzLine: { color: c.focus, labelBackgroundColor: c.focus },
+      },
       rightPriceScale: { borderColor: c.grid },
       timeScale: { borderColor: c.grid },
     });

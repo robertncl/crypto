@@ -89,6 +89,14 @@ input, select { font-family: inherit; }
 .topbar__account { display: flex; align-items: center; gap: var(--acme-space-4); }
 .topbar__email { color: var(--acme-color-text-muted); font-size: var(--acme-text-xs); }
 
+/* Current-page nav link — ACME Red accent (the brand color, rationed to
+   this + primary actions) instead of a flat neutral chip. */
+.acme-topbar__link[aria-current="page"] {
+  background: none;
+  color: var(--acme-color-primary);
+  box-shadow: inset 0 -2px 0 var(--acme-color-primary);
+}
+
 .content { flex: 1; min-block-size: 0; }
 
 /* ============================================================
@@ -127,11 +135,13 @@ input, select { font-family: inherit; }
   display: inline-flex; align-items: center; gap: var(--acme-space-1);
   padding: 0.125rem var(--acme-space-2); border-radius: var(--acme-radius-full);
   font: 600 var(--acme-text-xs) / var(--acme-leading-normal) var(--acme-font-sans);
-  background: var(--acme-color-surface); color: var(--acme-color-text-muted);
+  /* Plain badges are informational tags (e.g. "Spot") — Blueprint Blue,
+     the design system's info color, instead of a flat neutral chip. */
+  background: var(--acme-color-info-soft); color: var(--acme-color-info-soft-text);
 }
 .badge--warn { background: var(--acme-color-warning-soft); color: var(--acme-color-warning-soft-text); }
 .badge--ok { background: var(--acme-color-success-soft); color: var(--acme-color-success-soft-text); }
-.badge--soft { color: var(--acme-color-text-muted); }
+.badge--soft { background: var(--acme-color-surface); color: var(--acme-color-text-muted); }
 
 .status { font-size: 11px; font-weight: 600; text-transform: capitalize; }
 .status--open, .status--partial { color: var(--acme-color-warning); }
@@ -181,7 +191,9 @@ input, select { font-family: inherit; }
   transition: border-color var(--acme-duration-base) var(--acme-ease-out), color var(--acme-duration-base) var(--acme-ease-out);
 }
 .seg__btn:hover { color: var(--acme-color-text); }
-.seg__btn.is-active { border-block-end-color: var(--acme-color-text); color: var(--acme-color-text); font-weight: 600; }
+/* Selected tab/interval — Blueprint Blue, the design system's focus/data
+   color, so choosing a view reads distinctly from a brand (red) action. */
+.seg__btn.is-active { border-block-end-color: var(--acme-color-focus); color: var(--acme-color-focus); font-weight: 600; }
 .seg--type { align-self: flex-start; border-block-end: none; }
 
 /* ============================================================
