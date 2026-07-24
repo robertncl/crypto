@@ -186,7 +186,7 @@ func (b *Bot) fund(userID int64) {
 	now := time.Now().Unix()
 	for _, a := range assets {
 		amount := num.MustParse("100000000") // generous
-		_ = b.st.ApplyPostings("botseed:"+a.Symbol+":"+itoa(userID), now, []store.Posting{{
+		_ = b.st.ApplyPostings("botseed:"+a.Symbol+":"+strconv.FormatInt(userID, 10), now, []store.Posting{{
 			UserID: userID, Asset: a.Symbol, DeltaAvailable: amount, Reason: "bot_seed", Ref: "bot",
 		}})
 	}
@@ -308,26 +308,4 @@ func roundTo(value float64, step num.Dec) float64 {
 // num.Dec.
 func ftoa(f float64) string {
 	return strconv.FormatFloat(f, 'f', num.Decimals, 64)
-}
-
-func itoa(n int64) string {
-	if n == 0 {
-		return "0"
-	}
-	neg := n < 0
-	if neg {
-		n = -n
-	}
-	var b [20]byte
-	i := len(b)
-	for n > 0 {
-		i--
-		b[i] = byte('0' + n%10)
-		n /= 10
-	}
-	if neg {
-		i--
-		b[i] = '-'
-	}
-	return string(b[i:])
 }

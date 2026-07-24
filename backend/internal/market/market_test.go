@@ -22,15 +22,6 @@ func newService(t *testing.T) (*Service, *store.Store) {
 	return NewService(st, ws.NewHub()), st
 }
 
-func TestItoa(t *testing.T) {
-	cases := map[int64]string{0: "0", 5: "5", 60: "60", 3600: "3600", -42: "-42", 86400: "86400"}
-	for in, want := range cases {
-		if got := itoa(in); got != want {
-			t.Errorf("itoa(%d) = %q, want %q", in, got, want)
-		}
-	}
-}
-
 func TestKlineTopic(t *testing.T) {
 	if got := klineTopic("BTC-USDT", 60); got != "kline:BTC-USDT:60" {
 		t.Errorf("klineTopic = %q, want kline:BTC-USDT:60", got)

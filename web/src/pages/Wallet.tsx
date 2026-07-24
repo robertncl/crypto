@@ -1,24 +1,22 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../api/client";
-import type { Asset, Ticker, WalletAddress, WalletTxn } from "../api/types";
+import type { Asset, WalletAddress, WalletTxn } from "../api/types";
 import { useAuth } from "../state/auth";
 import { useBalances } from "../hooks/useBalances";
+import { usePrices } from "../hooks/usePrices";
 import { useChannel } from "../hooks/useStream";
 import { fmt, fmtUsd, shortId, timeAgo, toNum, trimDecimal } from "../utils/format";
 
 export function Wallet() {
   const { user, refresh } = useAuth();
   const { get, reload } = useBalances();
+  const { prices, priceOf } = usePrices();
   const [assets, setAssets] = useState<Asset[]>([]);
-  const [prices, setPrices] = useState<Record<string, number>>({});
   const [txns, setTxns] = useState<WalletTxn[]>([]);
 
   useEffect(() => {
     api.assets().then(setAssets).catch(() => {});
-    api.tickers().then((all: Ticker[]) =>
-      setPrices(Object.fromEntries(all.map((t) => [t.market, toNum(t.last)]))),
-    ).catch(() => {});
     if (user) api.walletTxns().then(setTxns).catch(() => {});
   }, [user]);
 
@@ -26,8 +24,6 @@ export function Wallet() {
     setTxns((prev) => [t, ...prev.filter((x) => x.id !== t.id)].slice(0, 100));
     reload();
   });
-
-  const priceOf = (sym: string) => (sym === "USDT" ? 1 : prices[`${sym}-USDT`] ?? 0);
 
   const portfolio = useMemo(() => {
     return assets.reduce((sum, a) => {

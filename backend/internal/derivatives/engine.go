@@ -47,12 +47,23 @@ type Engine struct {
 
 func newEngine(mkt models.PerpMarket, st *store.Store, md *market.Service, hub *ws.Hub) *Engine {
 	return &Engine{
-		mkt: mkt, book: newBook(), positions: map[int64]*models.Position{},
-		st: st, md: md, hub: hub, cmds: make(chan func(), 256),
+		mkt:       mkt,
+		book:      newBook(),
+		positions: map[int64]*models.Position{},
+		st:        st,
+		md:        md,
+		hub:       hub,
+		cmds:      make(chan func(), 256),
 	}
 }
 
-func (e *Engine) start() { go func() { for f := range e.cmds { f() } }() }
+func (e *Engine) start() {
+	go func() {
+		for f := range e.cmds {
+			f()
+		}
+	}()
+}
 
 // Place submits a perp order and blocks until matched/rested.
 func (e *Engine) Place(o *models.PerpOrder) (*models.PerpOrder, error) {
@@ -108,53 +119,28 @@ func (e *Engine) place(o *models.PerpOrder) (*models.PerpOrder, error) {
 	o.Status = models.StatusOpen
 	o.Leverage = e.clampLeverage(o.Leverage)
 
-	if o.Quantity.Sign() <= 0 || !isMultiple(o.Quantity, e.mkt.QtyStep) {
-		return nil, fmt.Errorf("%w: quantity must be a positive multiple of %s", ErrBadOrder, e.mkt.QtyStep)
-	}
-	if o.Type == models.TypeLimit {
-		if o.Price.Sign() <= 0 || !isMultiple(o.Price, e.mkt.PriceTick) {
-			return nil, fmt.Errorf("%w: price must be a positive multiple of %s", ErrBadOrder, e.mkt.PriceTick)
-		}
+	if err := validateOrderShape(o, e.mkt); err != nil {
+		return nil, err
 	}
 
-	pos := e.getPos(o.UserID)
 	// reduce-only must oppose an existing position.
-	if o.ReduceOnly {
-		if pos.Side == models.Flat || sameDir(o.Side, pos.Side) {
-			return nil, ErrReduceOnly
-		}
+	pos := e.getPos(o.UserID)
+	if o.ReduceOnly && reduceOnlyBlocked(o.Side, pos) {
+		return nil, ErrReduceOnly
 	}
 
 	// Estimate fill price for margin sizing and min-notional checks.
-	estPrice := o.Price
-	if o.Type == models.TypeMarket {
-		if o.Side == models.Buy {
-			estPrice = e.book.bestAsk()
-		} else {
-			estPrice = e.book.bestBid()
-		}
-		if estPrice.Sign() <= 0 {
-			return nil, ErrNoLiquidity
-		}
+	estPrice, err := e.estimateFillPrice(o)
+	if err != nil {
+		return nil, err
 	}
 	if estPrice.Mul(o.Quantity).Lt(e.mkt.MinNotional) {
 		return nil, fmt.Errorf("%w: notional below minimum %s", ErrBadOrder, e.mkt.MinNotional)
 	}
 
-	// Pre-lock isolated margin for orders that may open/increase. Reduce-only
-	// orders free margin instead, so they lock nothing.
-	lockMargin := num.Zero
-	if !o.ReduceOnly {
-		lockMargin = estPrice.Mul(o.Quantity).Div(num.FromInt(int64(o.Leverage)))
-		if err := e.st.ApplyPostings("perplock:"+o.ID, now, []store.Posting{{
-			UserID: o.UserID, Asset: settle, DeltaAvailable: lockMargin.Neg(), DeltaLocked: lockMargin,
-			Reason: "perp_order_lock", Ref: o.ID,
-		}}); err != nil {
-			if errors.Is(err, store.ErrInsufficientFunds) {
-				return nil, store.ErrInsufficientFunds
-			}
-			return nil, err
-		}
+	lockMargin, err := e.lockOrderMargin(o, estPrice, now)
+	if err != nil {
+		return nil, err
 	}
 
 	if err := e.st.InsertPerpOrder(o); err != nil {
@@ -196,14 +182,72 @@ func (e *Engine) place(o *models.PerpOrder) (*models.PerpOrder, error) {
 	return o, nil
 }
 
+// validateOrderShape checks that quantity (and, for limit orders, price) are
+// positive and aligned to the market's step/tick sizes.
+func validateOrderShape(o *models.PerpOrder, mkt models.PerpMarket) error {
+	if o.Quantity.Sign() <= 0 || !isMultiple(o.Quantity, mkt.QtyStep) {
+		return fmt.Errorf("%w: quantity must be a positive multiple of %s", ErrBadOrder, mkt.QtyStep)
+	}
+	if o.Type == models.TypeLimit {
+		if o.Price.Sign() <= 0 || !isMultiple(o.Price, mkt.PriceTick) {
+			return fmt.Errorf("%w: price must be a positive multiple of %s", ErrBadOrder, mkt.PriceTick)
+		}
+	}
+	return nil
+}
+
+// reduceOnlyBlocked reports whether a reduce-only order on the given side
+// cannot reduce pos: either it is already flat, or the order would open/
+// increase the position rather than reduce it.
+func reduceOnlyBlocked(side models.Side, pos *models.Position) bool {
+	return pos.Side == models.Flat || sameDir(side, pos.Side)
+}
+
 // reduceExhausted reports whether a reduce-only order can no longer reduce
 // (position already flat in the relevant direction).
 func (e *Engine) reduceExhausted(ro *restingOrder) bool {
 	if !ro.reduceOnly {
 		return false
 	}
-	pos := e.getPos(ro.userID)
-	return pos.Side == models.Flat || sameDir(ro.side, pos.Side)
+	return reduceOnlyBlocked(ro.side, e.getPos(ro.userID))
+}
+
+// estimateFillPrice returns the price used to size margin and check minimum
+// notional: the order's own price for a limit order, or the best opposing
+// book price for a market order.
+func (e *Engine) estimateFillPrice(o *models.PerpOrder) (num.Dec, error) {
+	if o.Type != models.TypeMarket {
+		return o.Price, nil
+	}
+	price := e.book.bestAsk()
+	if o.Side == models.Sell {
+		price = e.book.bestBid()
+	}
+	if price.Sign() <= 0 {
+		return num.Zero, ErrNoLiquidity
+	}
+	return price, nil
+}
+
+// lockOrderMargin pre-locks isolated margin for an order that may open or
+// increase a position, sized at estPrice/leverage. Reduce-only orders free
+// margin instead of locking it, so they lock nothing.
+func (e *Engine) lockOrderMargin(o *models.PerpOrder, estPrice num.Dec, now int64) (num.Dec, error) {
+	if o.ReduceOnly {
+		return num.Zero, nil
+	}
+	lockMargin := estPrice.Mul(o.Quantity).Div(num.FromInt(int64(o.Leverage)))
+	err := e.st.ApplyPostings("perplock:"+o.ID, now, []store.Posting{{
+		UserID: o.UserID, Asset: settle, DeltaAvailable: lockMargin.Neg(), DeltaLocked: lockMargin,
+		Reason: "perp_order_lock", Ref: o.ID,
+	}})
+	if err != nil {
+		if errors.Is(err, store.ErrInsufficientFunds) {
+			return num.Zero, store.ErrInsufficientFunds
+		}
+		return num.Zero, err
+	}
+	return lockMargin, nil
 }
 
 func (e *Engine) match(taker *restingOrder, now int64, affected map[int64]bool) error {
@@ -219,7 +263,7 @@ func (e *Engine) match(taker *restingOrder, now int64, affected map[int64]bool) 
 		reduceCap := num.Zero
 		if taker.reduceOnly {
 			pos := e.getPos(taker.userID)
-			if pos.Side == models.Flat || sameDir(taker.side, pos.Side) {
+			if reduceOnlyBlocked(taker.side, pos) {
 				return nil
 			}
 			reduceCap = pos.Size
@@ -315,62 +359,10 @@ func (e *Engine) settle(ro *restingOrder, pos *models.Position, price, qty, feeR
 		{UserID: store.ExchangeUserID, Asset: settle, DeltaAvailable: fee, Reason: "perp_fee", Ref: ref},
 	}
 
-	dirLong := ro.side == models.Buy
-	opening := pos.Side == models.Flat || sameDir(ro.side, pos.Side)
-
-	if opening {
-		lev := ro.leverage
-		if pos.Side != models.Flat {
-			lev = pos.Leverage
-		}
-		need := notional.Div(num.FromInt(int64(lev)))
-		ps = append(ps, e.reconcileLock(ro, need)...)
-		if pos.Side == models.Flat {
-			pos.Side = sideFor(dirLong)
-			pos.EntryPrice = price
-			pos.Size = qty
-			pos.Leverage = lev
-		} else {
-			newSize := pos.Size.Add(qty)
-			pos.EntryPrice = pos.Size.Mul(pos.EntryPrice).Add(qty.Mul(price)).Div(newSize)
-			pos.Size = newSize
-		}
-		pos.Margin = pos.Margin.Add(need)
+	if pos.Side == models.Flat || sameDir(ro.side, pos.Side) {
+		ps = append(ps, e.openOrIncrease(ro, pos, price, qty, notional)...)
 	} else {
-		closeQty := num.Min(qty, pos.Size)
-		var pnl num.Dec
-		if pos.Side == models.Long {
-			pnl = price.Sub(pos.EntryPrice).Mul(closeQty)
-		} else {
-			pnl = pos.EntryPrice.Sub(price).Mul(closeQty)
-		}
-		freed := pos.Margin.Mul(closeQty).Div(pos.Size)
-		pnl = num.Max(pnl, freed.Neg()) // cap loss at the released margin (isolated)
-		pos.Margin = pos.Margin.Sub(freed)
-		pos.Size = pos.Size.Sub(closeQty)
-		pos.RealizedPnL = pos.RealizedPnL.Add(pnl)
-		ps = append(ps,
-			store.Posting{UserID: ro.userID, Asset: settle, DeltaAvailable: freed, DeltaLocked: freed.Neg(), Reason: "perp_margin_release", Ref: ref},
-			store.Posting{UserID: ro.userID, Asset: settle, DeltaAvailable: pnl, Reason: "perp_pnl", Ref: ref},
-			store.Posting{UserID: store.InsuranceFundID, Asset: settle, DeltaAvailable: pnl.Neg(), Reason: "perp_pnl", Ref: ref},
-		)
-		if pos.Size.Sign() == 0 {
-			if pos.Margin.Sign() > 0 { // free rounding residual
-				ps = append(ps, store.Posting{UserID: ro.userID, Asset: settle, DeltaAvailable: pos.Margin, DeltaLocked: pos.Margin.Neg(), Reason: "perp_margin_release", Ref: ref})
-				pos.Margin = num.Zero
-			}
-			pos.Side = models.Flat
-			pos.EntryPrice = num.Zero
-		}
-		if rem := qty.Sub(closeQty); rem.Sign() > 0 { // flip remainder opens the other side
-			need := price.Mul(rem).Div(num.FromInt(int64(ro.leverage)))
-			ps = append(ps, e.reconcileLock(ro, need)...)
-			pos.Side = sideFor(dirLong)
-			pos.EntryPrice = price
-			pos.Size = rem
-			pos.Margin = need
-			pos.Leverage = ro.leverage
-		}
+		ps = append(ps, e.closeOrFlip(ro, pos, price, qty)...)
 	}
 
 	// Update the order's running fill + average price.
@@ -380,6 +372,74 @@ func (e *Engine) settle(ro *restingOrder, pos *models.Position, price, qty, feeR
 	ro.mo.Status = statusFor(ro.mo)
 	ro.mo.UpdatedAt = now
 	pos.UpdatedAt = now
+	return ps
+}
+
+// openOrIncrease grows pos in the direction of ro — a fresh position if pos is
+// flat, otherwise a same-direction add — locking the additional margin required
+// and updating the size-weighted average entry price.
+func (e *Engine) openOrIncrease(ro *restingOrder, pos *models.Position, price, qty, notional num.Dec) []store.Posting {
+	dirLong := ro.side == models.Buy
+	lev := ro.leverage
+	if pos.Side != models.Flat {
+		lev = pos.Leverage
+	}
+	need := notional.Div(num.FromInt(int64(lev)))
+	ps := e.reconcileLock(ro, need)
+	if pos.Side == models.Flat {
+		pos.Side = sideFor(dirLong)
+		pos.EntryPrice = price
+		pos.Size = qty
+		pos.Leverage = lev
+	} else {
+		newSize := pos.Size.Add(qty)
+		pos.EntryPrice = pos.Size.Mul(pos.EntryPrice).Add(qty.Mul(price)).Div(newSize)
+		pos.Size = newSize
+	}
+	pos.Margin = pos.Margin.Add(need)
+	return ps
+}
+
+// closeOrFlip reduces pos by up to qty, realizing PnL against the insurance
+// fund (capped at the isolated margin being released). If qty exceeds the
+// position size, the remainder flips pos into a new position on the other side.
+func (e *Engine) closeOrFlip(ro *restingOrder, pos *models.Position, price, qty num.Dec) []store.Posting {
+	ref := ro.id
+	closeQty := num.Min(qty, pos.Size)
+	var pnl num.Dec
+	if pos.Side == models.Long {
+		pnl = price.Sub(pos.EntryPrice).Mul(closeQty)
+	} else {
+		pnl = pos.EntryPrice.Sub(price).Mul(closeQty)
+	}
+	freed := pos.Margin.Mul(closeQty).Div(pos.Size)
+	pnl = num.Max(pnl, freed.Neg()) // cap loss at the released margin (isolated)
+	pos.Margin = pos.Margin.Sub(freed)
+	pos.Size = pos.Size.Sub(closeQty)
+	pos.RealizedPnL = pos.RealizedPnL.Add(pnl)
+	ps := []store.Posting{
+		{UserID: ro.userID, Asset: settle, DeltaAvailable: freed, DeltaLocked: freed.Neg(), Reason: "perp_margin_release", Ref: ref},
+		{UserID: ro.userID, Asset: settle, DeltaAvailable: pnl, Reason: "perp_pnl", Ref: ref},
+		{UserID: store.InsuranceFundID, Asset: settle, DeltaAvailable: pnl.Neg(), Reason: "perp_pnl", Ref: ref},
+	}
+	if pos.Size.Sign() == 0 {
+		if pos.Margin.Sign() > 0 { // free rounding residual
+			ps = append(ps, store.Posting{UserID: ro.userID, Asset: settle, DeltaAvailable: pos.Margin, DeltaLocked: pos.Margin.Neg(), Reason: "perp_margin_release", Ref: ref})
+			pos.Margin = num.Zero
+		}
+		pos.Side = models.Flat
+		pos.EntryPrice = num.Zero
+	}
+	if rem := qty.Sub(closeQty); rem.Sign() > 0 { // flip remainder opens the other side
+		dirLong := ro.side == models.Buy
+		need := price.Mul(rem).Div(num.FromInt(int64(ro.leverage)))
+		ps = append(ps, e.reconcileLock(ro, need)...)
+		pos.Side = sideFor(dirLong)
+		pos.EntryPrice = price
+		pos.Size = rem
+		pos.Margin = need
+		pos.Leverage = ro.leverage
+	}
 	return ps
 }
 

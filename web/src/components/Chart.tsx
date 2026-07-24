@@ -32,6 +32,21 @@ function acmeChartColors() {
   };
 }
 
+function candlePoint(c: Candle) {
+  return {
+    time: c.time as UTCTimestamp,
+    open: toNum(c.open), high: toNum(c.high), low: toNum(c.low), close: toNum(c.close),
+  };
+}
+
+function volumePoint(c: Candle, colors: { up: string; down: string }) {
+  return {
+    time: c.time as UTCTimestamp,
+    value: toNum(c.volume),
+    color: toNum(c.close) >= toNum(c.open) ? `${colors.up}66` : `${colors.down}66`,
+  };
+}
+
 export function Chart({ market }: { market: Market }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -99,20 +114,9 @@ export function Chart({ market }: { market: Market }) {
     let live = true;
     api.candles(market.symbol, interval, 400).then((rows: Candle[]) => {
       if (!live || !candleRef.current || !volRef.current) return;
-      const c = acmeChartColors();
-      candleRef.current.setData(
-        rows.map((row) => ({
-          time: row.time as UTCTimestamp,
-          open: toNum(row.open), high: toNum(row.high), low: toNum(row.low), close: toNum(row.close),
-        })),
-      );
-      volRef.current.setData(
-        rows.map((row) => ({
-          time: row.time as UTCTimestamp,
-          value: toNum(row.volume),
-          color: toNum(row.close) >= toNum(row.open) ? `${c.up}66` : `${c.down}66`,
-        })),
-      );
+      const colors = acmeChartColors();
+      candleRef.current.setData(rows.map(candlePoint));
+      volRef.current.setData(rows.map((row) => volumePoint(row, colors)));
       chartRef.current?.timeScale().fitContent();
     }).catch(() => {});
     return () => { live = false; };
@@ -121,15 +125,8 @@ export function Chart({ market }: { market: Market }) {
   // Live candle updates for the selected interval.
   useChannel<Candle>(`kline:${market.symbol}:${sec}`, (c) => {
     const colors = acmeChartColors();
-    candleRef.current?.update({
-      time: c.time as UTCTimestamp,
-      open: toNum(c.open), high: toNum(c.high), low: toNum(c.low), close: toNum(c.close),
-    });
-    volRef.current?.update({
-      time: c.time as UTCTimestamp,
-      value: toNum(c.volume),
-      color: toNum(c.close) >= toNum(c.open) ? `${colors.up}66` : `${colors.down}66`,
-    });
+    candleRef.current?.update(candlePoint(c));
+    volRef.current?.update(volumePoint(c, colors));
   });
 
   return (

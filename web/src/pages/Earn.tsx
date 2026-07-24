@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../api/client";
-import type { EarnPosition, EarnProduct, Ticker } from "../api/types";
+import type { EarnPosition, EarnProduct } from "../api/types";
 import { useAuth } from "../state/auth";
 import { useBalances } from "../hooks/useBalances";
+import { usePrices } from "../hooks/usePrices";
 import { useChannel } from "../hooks/useStream";
 import { fmt, fmtUsd, toNum, trimDecimal } from "../utils/format";
 
@@ -20,15 +21,12 @@ function termLabel(p: EarnProduct): string {
 export function Earn() {
   const { user } = useAuth();
   const { get, reload } = useBalances();
+  const { prices, priceOf } = usePrices();
   const [products, setProducts] = useState<EarnProduct[]>([]);
   const [positions, setPositions] = useState<EarnPosition[]>([]);
-  const [prices, setPrices] = useState<Record<string, number>>({});
 
   useEffect(() => {
     api.earnProducts().then(setProducts).catch(() => {});
-    api.tickers().then((all: Ticker[]) =>
-      setPrices(Object.fromEntries(all.map((t) => [t.market, toNum(t.last)]))),
-    ).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -42,8 +40,6 @@ export function Earn() {
     setPositions(list);
     reload();
   });
-
-  const priceOf = (sym: string) => (sym === "USDT" ? 1 : prices[`${sym}-USDT`] ?? 0);
 
   const active = useMemo(() => positions.filter((p) => p.status === "active"), [positions]);
 

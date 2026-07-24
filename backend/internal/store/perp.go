@@ -164,7 +164,7 @@ func (s *Store) UpdatePerpOrder(o *models.PerpOrder) error {
 }
 
 func (s *Store) GetPerpOrder(id string) (*models.PerpOrder, error) {
-	return scanPerpOrder(s.db.QueryRow(perpOrderCols + ` WHERE id=?`, id))
+	return scanPerpOrder(s.db.QueryRow(perpOrderCols+` WHERE id=?`, id))
 }
 
 func (s *Store) ListOpenPerpOrders(userID int64, market string) ([]models.PerpOrder, error) {

@@ -25,14 +25,8 @@ func (s *Server) handlePlaceOrder(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	side := models.Side(strings.ToLower(req.Side))
-	if side != models.Buy && side != models.Sell {
-		writeErr(w, http.StatusBadRequest, "side must be 'buy' or 'sell'")
-		return
-	}
-	typ := models.OrderType(strings.ToLower(req.Type))
-	if typ != models.TypeLimit && typ != models.TypeMarket {
-		writeErr(w, http.StatusBadRequest, "type must be 'limit' or 'market'")
+	side, typ, ok := parseSideType(w, req.Side, req.Type)
+	if !ok {
 		return
 	}
 	eng, ok := s.mgr.Get(strings.ToUpper(req.Market))

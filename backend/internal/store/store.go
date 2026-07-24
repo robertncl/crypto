@@ -314,14 +314,14 @@ func (s *Store) GetOrder(id string) (*models.Order, error) {
 
 const orderCols = `SELECT id,user_id,market,side,type,price,quantity,filled,quote_filled,fee_paid,status,created_at,updated_at FROM orders`
 
-func scanOrderRow(row *sql.Row) (*models.Order, error) {
+// scanOrder reads one order row. sc is either a *sql.Row (single lookup) or a
+// *sql.Rows (iterating a result set), so this logic is written once and shared
+// by scanOrderRow and scanOrders below.
+func scanOrder(sc scanner) (*models.Order, error) {
 	var o models.Order
 	var price, qty, filled, qfilled, fee int64
-	err := row.Scan(&o.ID, &o.UserID, &o.Market, &o.Side, &o.Type, &price, &qty, &filled, &qfilled, &fee,
+	err := sc.Scan(&o.ID, &o.UserID, &o.Market, &o.Side, &o.Type, &price, &qty, &filled, &qfilled, &fee,
 		&o.Status, &o.CreatedAt, &o.UpdatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -330,19 +330,23 @@ func scanOrderRow(row *sql.Row) (*models.Order, error) {
 	return &o, nil
 }
 
+func scanOrderRow(row *sql.Row) (*models.Order, error) {
+	o, err := scanOrder(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return o, err
+}
+
 func scanOrders(rows *sql.Rows) ([]models.Order, error) {
 	defer rows.Close()
 	var out []models.Order
 	for rows.Next() {
-		var o models.Order
-		var price, qty, filled, qfilled, fee int64
-		if err := rows.Scan(&o.ID, &o.UserID, &o.Market, &o.Side, &o.Type, &price, &qty, &filled, &qfilled, &fee,
-			&o.Status, &o.CreatedAt, &o.UpdatedAt); err != nil {
+		o, err := scanOrder(rows)
+		if err != nil {
 			return nil, err
 		}
-		o.Price, o.Quantity, o.Filled = num.FromRaw(price), num.FromRaw(qty), num.FromRaw(filled)
-		o.QuoteFilled, o.FeePaid = num.FromRaw(qfilled), num.FromRaw(fee)
-		out = append(out, o)
+		out = append(out, *o)
 	}
 	return out, rows.Err()
 }
@@ -452,25 +456,22 @@ func scanTrades(rows *sql.Rows) ([]models.Trade, error) {
 // Candle aggregates trades into OHLCV buckets of intervalSec seconds, returning
 // up to limit most-recent buckets in ascending time order.
 func (s *Store) Candles(market string, intervalSec int64, limit int) ([]models.Candle, error) {
-	// Group trades by floor(created_at/interval)*interval. SQLite has no window
-	// frame for first/last by time cheaply, so we approximate open/close using
-	// MIN/MAX id within the bucket via a correlated subquery would be costly;
-	// instead we fetch raw trades for the recent window and fold in Go.
-	windowStart := int64(0)
+	// Group trades by floor(created_at/interval)*interval. SQLite has no cheap
+	// window frame for first/last-by-time, so instead of a bucketed query we
+	// fetch every trade for the market and fold buckets in Go, then keep only
+	// the most recent `limit` buckets.
 	rows, err := s.db.Query(
-		`SELECT price,quantity,created_at FROM trades WHERE market=? AND created_at>=? ORDER BY id ASC`,
-		market, windowStart)
+		`SELECT price,quantity,created_at FROM trades WHERE market=? ORDER BY id ASC`, market)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	type agg struct {
-		o, h, l, c, v num.Dec
-		set           bool
+	type bucket struct {
+		open, high, low, close, volume num.Dec
 	}
-	buckets := map[int64]*agg{}
-	var order []int64
+	byBucketTime := map[int64]*bucket{}
+	var bucketTimesInOrder []int64
 	for rows.Next() {
 		var p, q, ts int64
 		if err := rows.Scan(&p, &q, &ts); err != nil {
@@ -478,25 +479,24 @@ func (s *Store) Candles(market string, intervalSec int64, limit int) ([]models.C
 		}
 		price, qty := num.FromRaw(p), num.FromRaw(q)
 		bt := (ts / intervalSec) * intervalSec
-		a := buckets[bt]
-		if a == nil {
-			a = &agg{o: price, h: price, l: price, c: price}
-			buckets[bt] = a
-			order = append(order, bt)
+		b := byBucketTime[bt]
+		if b == nil {
+			b = &bucket{open: price, high: price, low: price, close: price}
+			byBucketTime[bt] = b
+			bucketTimesInOrder = append(bucketTimesInOrder, bt)
 		}
-		a.h = num.Max(a.h, price)
-		a.l = num.Min(a.l, price)
-		a.c = price
-		a.v = a.v.Add(qty)
-		a.set = true
+		b.high = num.Max(b.high, price)
+		b.low = num.Min(b.low, price)
+		b.close = price
+		b.volume = b.volume.Add(qty)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	out := make([]models.Candle, 0, len(order))
-	for _, bt := range order {
-		a := buckets[bt]
-		out = append(out, models.Candle{Time: bt, Open: a.o, High: a.h, Low: a.l, Close: a.c, Volume: a.v})
+	out := make([]models.Candle, 0, len(bucketTimesInOrder))
+	for _, bt := range bucketTimesInOrder {
+		b := byBucketTime[bt]
+		out = append(out, models.Candle{Time: bt, Open: b.open, High: b.high, Low: b.low, Close: b.close, Volume: b.volume})
 	}
 	if len(out) > limit {
 		out = out[len(out)-limit:]

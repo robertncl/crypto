@@ -19,6 +19,7 @@ import (
 	"cryptoex/internal/earn"
 	"cryptoex/internal/engine"
 	"cryptoex/internal/market"
+	"cryptoex/internal/models"
 	"cryptoex/internal/store"
 	"cryptoex/internal/wallet"
 	"cryptoex/internal/ws"
@@ -67,8 +68,8 @@ func (s *Server) routes() http.Handler {
 	}))
 
 	r.Route("/api", func(r chi.Router) {
-		r.Use(maxBody(maxBodyBytes))                 // bound request bodies (DoS)
-		r.Use(httprate.LimitByIP(600, time.Minute))  // generous per-IP API ceiling
+		r.Use(maxBody(maxBodyBytes))                // bound request bodies (DoS)
+		r.Use(httprate.LimitByIP(600, time.Minute)) // generous per-IP API ceiling
 
 		// Auth endpoints get a much tighter per-IP limit to blunt brute-force
 		// and credential-stuffing attacks.
@@ -287,4 +288,21 @@ func queryInt(r *http.Request, key string, def, max int) int {
 
 func symbolParam(r *http.Request) string {
 	return strings.ToUpper(chi.URLParam(r, "symbol"))
+}
+
+// parseSideType validates and normalizes the side/type strings common to spot
+// and perp order-placement requests. On error it writes the response itself
+// and returns ok=false.
+func parseSideType(w http.ResponseWriter, sideStr, typeStr string) (side models.Side, typ models.OrderType, ok bool) {
+	side = models.Side(strings.ToLower(sideStr))
+	if side != models.Buy && side != models.Sell {
+		writeErr(w, http.StatusBadRequest, "side must be 'buy' or 'sell'")
+		return "", "", false
+	}
+	typ = models.OrderType(strings.ToLower(typeStr))
+	if typ != models.TypeLimit && typ != models.TypeMarket {
+		writeErr(w, http.StatusBadRequest, "type must be 'limit' or 'market'")
+		return "", "", false
+	}
+	return side, typ, true
 }

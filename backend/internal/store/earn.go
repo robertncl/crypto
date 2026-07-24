@@ -26,7 +26,7 @@ func (s *Store) ListEarnProducts() ([]models.EarnProduct, error) {
 	defer rows.Close()
 	var out []models.EarnProduct
 	for rows.Next() {
-		p, err := scanEarnProductRows(rows)
+		p, err := scanEarnProduct(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -38,23 +38,17 @@ func (s *Store) ListEarnProducts() ([]models.EarnProduct, error) {
 func (s *Store) GetEarnProduct(id string) (*models.EarnProduct, error) {
 	row := s.db.QueryRow(
 		`SELECT id,asset,kind,apr,term_days,min_amount,max_amount,status FROM earn_products WHERE id=?`, id)
-	var p models.EarnProduct
-	var apr, minA, maxA int64
-	err := row.Scan(&p.ID, &p.Asset, &p.Kind, &apr, &p.TermDays, &minA, &maxA, &p.Status)
+	p, err := scanEarnProduct(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
-	if err != nil {
-		return nil, err
-	}
-	p.APR, p.MinAmount, p.MaxAmount = num.FromRaw(apr), num.FromRaw(minA), num.FromRaw(maxA)
-	return &p, nil
+	return p, err
 }
 
-func scanEarnProductRows(rows *sql.Rows) (*models.EarnProduct, error) {
+func scanEarnProduct(sc scanner) (*models.EarnProduct, error) {
 	var p models.EarnProduct
 	var apr, minA, maxA int64
-	if err := rows.Scan(&p.ID, &p.Asset, &p.Kind, &apr, &p.TermDays, &minA, &maxA, &p.Status); err != nil {
+	if err := sc.Scan(&p.ID, &p.Asset, &p.Kind, &apr, &p.TermDays, &minA, &maxA, &p.Status); err != nil {
 		return nil, err
 	}
 	p.APR, p.MinAmount, p.MaxAmount = num.FromRaw(apr), num.FromRaw(minA), num.FromRaw(maxA)
@@ -95,14 +89,11 @@ func (s *Store) ListActiveEarnPositions() ([]models.EarnPosition, error) {
 	return scanEarnPositions(rows)
 }
 
-func scanEarnPositionRow(row *sql.Row) (*models.EarnPosition, error) {
+func scanEarnPosition(sc scanner) (*models.EarnPosition, error) {
 	var p models.EarnPosition
 	var principal, apr, accrued int64
-	err := row.Scan(&p.ID, &p.UserID, &p.ProductID, &p.Asset, &p.Kind, &principal, &apr, &accrued,
+	err := sc.Scan(&p.ID, &p.UserID, &p.ProductID, &p.Asset, &p.Kind, &principal, &apr, &accrued,
 		&p.Status, &p.StartAt, &p.MaturityAt, &p.LastAccrualAt, &p.RedeemedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -110,18 +101,23 @@ func scanEarnPositionRow(row *sql.Row) (*models.EarnPosition, error) {
 	return &p, nil
 }
 
+func scanEarnPositionRow(row *sql.Row) (*models.EarnPosition, error) {
+	p, err := scanEarnPosition(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	return p, err
+}
+
 func scanEarnPositions(rows *sql.Rows) ([]models.EarnPosition, error) {
 	defer rows.Close()
 	var out []models.EarnPosition
 	for rows.Next() {
-		var p models.EarnPosition
-		var principal, apr, accrued int64
-		if err := rows.Scan(&p.ID, &p.UserID, &p.ProductID, &p.Asset, &p.Kind, &principal, &apr, &accrued,
-			&p.Status, &p.StartAt, &p.MaturityAt, &p.LastAccrualAt, &p.RedeemedAt); err != nil {
+		p, err := scanEarnPosition(rows)
+		if err != nil {
 			return nil, err
 		}
-		p.Principal, p.APR, p.AccruedTotal = num.FromRaw(principal), num.FromRaw(apr), num.FromRaw(accrued)
-		out = append(out, p)
+		out = append(out, *p)
 	}
 	return out, rows.Err()
 }
