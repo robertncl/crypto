@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -54,7 +55,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Grant a demo welcome balance.
-	_ = s.st.ApplyPostings("welcome:"+itoa(user.ID), time.Now().Unix(), []store.Posting{{
+	_ = s.st.ApplyPostings("welcome:"+strconv.FormatInt(user.ID, 10), time.Now().Unix(), []store.Posting{{
 		UserID: user.ID, Asset: "USDT", DeltaAvailable: welcomeBonus, Reason: "welcome_bonus", Ref: "signup",
 	}})
 
@@ -104,27 +105,4 @@ func (s *Server) handleKYCVerify(w http.ResponseWriter, r *http.Request) {
 	}
 	user, _ := s.st.GetUserByID(uid)
 	writeJSON(w, http.StatusOK, user)
-}
-
-func itoa(n int64) string {
-	const digits = "0123456789"
-	if n == 0 {
-		return "0"
-	}
-	neg := n < 0
-	if neg {
-		n = -n
-	}
-	var b [20]byte
-	i := len(b)
-	for n > 0 {
-		i--
-		b[i] = digits[n%10]
-		n /= 10
-	}
-	if neg {
-		i--
-		b[i] = '-'
-	}
-	return string(b[i:])
 }

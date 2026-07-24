@@ -6,6 +6,7 @@ package market
 
 import (
 	"context"
+	"strconv"
 	"sync"
 	"time"
 
@@ -22,12 +23,12 @@ type Service struct {
 	store *store.Store
 	hub   *ws.Hub
 
-	mu       sync.RWMutex
-	tickers  map[string]*models.Ticker
-	candles  map[string]map[int64]*models.Candle // market -> intervalSec -> current bar
-	bestBid  map[string]num.Dec
-	bestAsk  map[string]num.Dec
-	extra    []string // non-spot symbols (e.g. perps) registered for live data
+	mu      sync.RWMutex
+	tickers map[string]*models.Ticker
+	candles map[string]map[int64]*models.Candle // market -> intervalSec -> current bar
+	bestBid map[string]num.Dec
+	bestAsk map[string]num.Dec
+	extra   []string // non-spot symbols (e.g. perps) registered for live data
 }
 
 func NewService(st *store.Store, hub *ws.Hub) *Service {
@@ -211,27 +212,5 @@ func (s *Service) AllTickers() []models.Ticker {
 }
 
 func klineTopic(market string, sec int64) string {
-	return "kline:" + market + ":" + itoa(sec)
-}
-
-func itoa(n int64) string {
-	if n == 0 {
-		return "0"
-	}
-	neg := n < 0
-	if neg {
-		n = -n
-	}
-	var b [20]byte
-	i := len(b)
-	for n > 0 {
-		i--
-		b[i] = byte('0' + n%10)
-		n /= 10
-	}
-	if neg {
-		i--
-		b[i] = '-'
-	}
-	return string(b[i:])
+	return "kline:" + market + ":" + strconv.FormatInt(sec, 10)
 }

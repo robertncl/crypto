@@ -23,10 +23,10 @@ import (
 const depthLevels = 50
 
 var (
-	ErrMarketHalted = errors.New("market is not trading")
-	ErrBadOrder     = errors.New("invalid order")
+	ErrMarketHalted  = errors.New("market is not trading")
+	ErrBadOrder      = errors.New("invalid order")
 	ErrOrderNotFound = errors.New("order not found or not active")
-	ErrNotOwner     = errors.New("not order owner")
+	ErrNotOwner      = errors.New("not order owner")
 )
 
 // Engine matches orders for a single market.
@@ -50,7 +50,13 @@ func newEngine(mkt models.Market, st *store.Store, md *market.Service, hub *ws.H
 	}
 }
 
-func (e *Engine) start() { go func() { for f := range e.cmds { f() } }() }
+func (e *Engine) start() {
+	go func() {
+		for f := range e.cmds {
+			f()
+		}
+	}()
+}
 
 // Place submits an order and blocks until it has been matched/rested.
 func (e *Engine) Place(o *models.Order) (*models.Order, error) {
@@ -245,7 +251,7 @@ func (e *Engine) executeFill(taker, maker *restingOrder, matchQty, price num.Dec
 
 	buyerRate := e.feeRate(buyer == maker)
 	sellerRate := e.feeRate(seller == maker)
-	buyerFee := matchQty.Mul(buyerRate)   // charged in base (asset received by buyer)
+	buyerFee := matchQty.Mul(buyerRate)    // charged in base (asset received by buyer)
 	sellerFee := quoteCost.Mul(sellerRate) // charged in quote (asset received by seller)
 
 	// Determine how much of the buyer's locked quote to release and any price

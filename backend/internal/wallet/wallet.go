@@ -23,11 +23,11 @@ import (
 )
 
 var (
-	ErrUnknownAsset    = errors.New("unknown asset")
-	ErrBelowMin        = errors.New("amount below minimum")
-	ErrKYCRequired     = errors.New("identity verification required for withdrawals")
-	ErrInvalidAmount   = errors.New("amount must be positive")
-	ErrInvalidAddress  = errors.New("invalid destination address")
+	ErrUnknownAsset   = errors.New("unknown asset")
+	ErrBelowMin       = errors.New("amount below minimum")
+	ErrKYCRequired    = errors.New("identity verification required for withdrawals")
+	ErrInvalidAmount  = errors.New("amount must be positive")
+	ErrInvalidAddress = errors.New("invalid destination address")
 )
 
 // confirmInterval is the simulated time between on-chain confirmations.

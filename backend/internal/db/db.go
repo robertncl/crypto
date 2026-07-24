@@ -52,9 +52,9 @@ type seedAsset struct {
 }
 
 type seedMarket struct {
-	base, quote                      string
-	priceTick, qtyStep, minNotional  string
-	makerFee, takerFee               string
+	base, quote                     string
+	priceTick, qtyStep, minNotional string
+	makerFee, takerFee              string
 }
 
 func seed(conn *sql.DB) error {

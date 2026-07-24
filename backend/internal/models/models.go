@@ -168,7 +168,7 @@ type Ticker struct {
 	Open24h    num.Dec `json:"open24h"`
 	High24h    num.Dec `json:"high24h"`
 	Low24h     num.Dec `json:"low24h"`
-	Volume24h  num.Dec `json:"volume24h"`  // base volume
+	Volume24h  num.Dec `json:"volume24h"`   // base volume
 	QuoteVol24 num.Dec `json:"quoteVol24h"` // quote volume
 	Change     num.Dec `json:"change"`      // absolute price change
 	ChangePct  num.Dec `json:"changePct"`   // percent change

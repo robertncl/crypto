@@ -122,12 +122,3 @@ func TestSymbolParam(t *testing.T) {
 		t.Errorf("symbolParam = %q, want BTC-USDT (uppercased)", got)
 	}
 }
-
-func TestItoa(t *testing.T) {
-	cases := map[int64]string{0: "0", 1: "1", 42: "42", -7: "-7", 1000000: "1000000"}
-	for in, want := range cases {
-		if got := itoa(in); got != want {
-			t.Errorf("itoa(%d) = %q, want %q", in, got, want)
-		}
-	}
-}
