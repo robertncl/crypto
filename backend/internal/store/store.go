@@ -22,6 +22,11 @@ var (
 	ErrInsufficientFunds = errors.New("insufficient funds")
 	// ErrNotFound is returned when a row does not exist.
 	ErrNotFound = errors.New("not found")
+	// ErrNotActive is returned by guarded state transitions (e.g. earn redeem)
+	// when the target row is no longer in the expected 'active' state, so a
+	// concurrent request that already transitioned it wins and this one is a
+	// no-op. It closes check-then-act races on pool-funded payouts.
+	ErrNotActive = errors.New("row is not active")
 )
 
 type Store struct {

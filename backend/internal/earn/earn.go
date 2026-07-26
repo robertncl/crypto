@@ -182,7 +182,12 @@ func (s *Service) Redeem(userID int64, positionID string) (*models.EarnPosition,
 	pos.Status = models.EarnRedeemed
 	pos.LastAccrualAt = now
 	pos.RedeemedAt = now
-	if err := s.st.CommitEarnPosting("earn_redeem:"+pos.ID, now, postings, pos); err != nil {
+	if err := s.st.RedeemEarn("earn_redeem:"+pos.ID, now, postings, pos); err != nil {
+		// A concurrent redeem already closed this position: no payout happened,
+		// so surface it as already-closed rather than a server error.
+		if errors.Is(err, store.ErrNotActive) {
+			return nil, ErrPositionClosed
+		}
 		return nil, err
 	}
 	s.publishBalances(userID)
@@ -228,7 +233,10 @@ func (s *Service) accrueAll() {
 		}
 		pos.AccruedTotal = pos.AccruedTotal.Add(interest)
 		pos.LastAccrualAt = end
-		if err := s.st.CommitEarnPosting("earn_accrue:"+pos.ID+":"+strconv.FormatInt(end, 10), now, postings, pos); err != nil {
+		// AccrueEarn's guarded update skips (ErrNotActive) any position a
+		// concurrent redeem has already closed, so interest is never paid on — or
+		// able to resurrect — a redeemed position.
+		if err := s.st.AccrueEarn("earn_accrue:"+pos.ID+":"+strconv.FormatInt(end, 10), now, postings, pos); err != nil {
 			continue
 		}
 		touched[pos.UserID] = true

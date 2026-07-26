@@ -131,13 +131,6 @@ func insertEarnPositionTx(tx *sql.Tx, p *models.EarnPosition) error {
 	return err
 }
 
-func updateEarnPositionTx(tx *sql.Tx, p *models.EarnPosition) error {
-	_, err := tx.Exec(
-		`UPDATE earn_positions SET accrued_total=?, status=?, last_accrual_at=?, redeemed_at=? WHERE id=?`,
-		p.AccruedTotal.Raw(), p.Status, p.LastAccrualAt, p.RedeemedAt, p.ID)
-	return err
-}
-
 // SubscribeEarn atomically applies the funding postings (debit the user, credit
 // the Earn pool) and inserts the new position, so funds, the ledger, and the
 // position never diverge.
@@ -156,10 +149,14 @@ func (s *Store) SubscribeEarn(txnID string, createdAt int64, postings []Posting,
 	return tx.Commit()
 }
 
-// CommitEarnPosting atomically applies postings (e.g. an interest payout or a
-// principal return) and persists the updated position. Used for both accrual
-// and redemption.
-func (s *Store) CommitEarnPosting(txnID string, createdAt int64, postings []Posting, pos *models.EarnPosition) error {
+// RedeemEarn atomically pays out (postings) and closes an active position. The
+// closing UPDATE is guarded by `status='active'` in the same transaction as the
+// payout, so two concurrent redeems of the same position cannot both pay out:
+// the first transitions the row and commits, the second's guarded UPDATE
+// affects zero rows and the whole transaction (including its payout postings)
+// rolls back with ErrNotActive. This closes the double-redeem race that would
+// otherwise mint principal + interest from the reserved Earn pool account.
+func (s *Store) RedeemEarn(txnID string, createdAt int64, postings []Posting, pos *models.EarnPosition) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -168,8 +165,50 @@ func (s *Store) CommitEarnPosting(txnID string, createdAt int64, postings []Post
 	if err := applyPostingsTx(tx, txnID, createdAt, postings); err != nil {
 		return err
 	}
-	if err := updateEarnPositionTx(tx, pos); err != nil {
+	res, err := tx.Exec(
+		`UPDATE earn_positions SET accrued_total=?, status=?, last_accrual_at=?, redeemed_at=?
+		 WHERE id=? AND status='active'`,
+		pos.AccruedTotal.Raw(), pos.Status, pos.LastAccrualAt, pos.RedeemedAt, pos.ID)
+	if err != nil {
 		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n != 1 {
+		return ErrNotActive // already redeemed by a concurrent request; roll back
+	}
+	return tx.Commit()
+}
+
+// AccrueEarn atomically credits accrued interest (postings) and advances a
+// position's accrual bookkeeping. Like RedeemEarn, the UPDATE is guarded by
+// `status='active'`: if a redeem committed first, this affects zero rows and the
+// interest postings roll back with ErrNotActive, so a redeemed position can
+// never be resurrected or paid interest.
+func (s *Store) AccrueEarn(txnID string, createdAt int64, postings []Posting, pos *models.EarnPosition) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := applyPostingsTx(tx, txnID, createdAt, postings); err != nil {
+		return err
+	}
+	res, err := tx.Exec(
+		`UPDATE earn_positions SET accrued_total=?, last_accrual_at=?
+		 WHERE id=? AND status='active'`,
+		pos.AccruedTotal.Raw(), pos.LastAccrualAt, pos.ID)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n != 1 {
+		return ErrNotActive
 	}
 	return tx.Commit()
 }
