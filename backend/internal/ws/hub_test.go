@@ -128,3 +128,43 @@ func TestResolveTopicPrivateAuthenticated(t *testing.T) {
 		t.Errorf("resolveTopic(orders) = %q,%v, want orders:42,true", topic, ok)
 	}
 }
+
+// TestResolveTopicRejectsScopedPrivateTopic is the regression guard for the
+// authorization-bypass vuln: a client must not be able to name another user's
+// (or even its own) user-scoped private topic directly. Only the bare channel
+// name is accepted, and the server appends the id.
+func TestResolveTopicRejectsScopedPrivateTopic(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		userID  int64
+		channel string
+	}{
+		{"unauth reads victim balances", 0, "balances:42"},
+		{"unauth reads victim orders", 0, "orders:42"},
+		{"unauth reads victim wallet txns", 0, "walletTxns:42"},
+		{"auth user 7 reads victim 42 balances", 7, "balances:42"},
+		{"auth user 7 reads own scoped topic directly", 7, "balances:7"},
+		{"auth reads victim positions", 7, "positions:42"},
+		{"auth reads victim perp orders", 7, "perpOrders:42"},
+		{"auth reads victim earn positions", 7, "earnPositions:42"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &Client{userID: tc.userID}
+			if topic, ok := c.resolveTopic(tc.channel); ok {
+				t.Errorf("resolveTopic(%q) allowed as %q; want rejected", tc.channel, topic)
+			}
+		})
+	}
+}
+
+// TestResolveTopicPublicScoped confirms legitimate scoped public channels
+// (which also contain ':') are still accepted.
+func TestResolveTopicPublicScoped(t *testing.T) {
+	c := &Client{userID: 0}
+	for _, ch := range []string{"ticker:BTC-USDT", "depth:BTC-USDT", "trades:BTC-USDT", "kline:BTC-USDT:60", "funding:BTC-PERP"} {
+		topic, ok := c.resolveTopic(ch)
+		if !ok || topic != ch {
+			t.Errorf("resolveTopic(%q) = %q,%v; want %q,true", ch, topic, ok, ch)
+		}
+	}
+}
