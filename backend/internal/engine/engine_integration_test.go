@@ -140,3 +140,92 @@ func TestCancelReleasesFunds(t *testing.T) {
 		t.Fatalf("after cancel available = %s, want 1000", got)
 	}
 }
+
+// TestMarketBuyWithQuoteBudget covers the market-buy path where Quantity
+// carries a quote budget and the fillable base amount is floored to the
+// market's qty step (engine.floorStep / matchQuantity).
+func TestMarketBuyWithQuoteBudget(t *testing.T) {
+	st, mgr := setup(t)
+	eng, ok := mgr.Get("BTC-USDT")
+	if !ok {
+		t.Fatal("no BTC-USDT engine")
+	}
+	const seller, buyer = int64(1), int64(2)
+	credit(t, st, seller, "BTC", "1")
+	credit(t, st, buyer, "USDT", "10")
+
+	// Seller rests an ask for 0.01 BTC @ 1000 (10 USDT of liquidity).
+	if _, err := eng.Place(&models.Order{
+		UserID: seller, Side: models.Sell, Type: models.TypeLimit,
+		Price: num.MustParse("1000"), Quantity: num.MustParse("0.01"),
+	}); err != nil {
+		t.Fatalf("seller ask: %v", err)
+	}
+
+	// Buyer spends a 10 USDT budget at market.
+	o, err := eng.Place(&models.Order{
+		UserID: buyer, Side: models.Buy, Type: models.TypeMarket,
+		Quantity: num.MustParse("10"), // quote budget
+	})
+	if err != nil {
+		t.Fatalf("market buy: %v", err)
+	}
+	if o.Status != models.StatusFilled {
+		t.Errorf("status = %s, want filled", o.Status)
+	}
+	if o.Filled.String() != "0.01" {
+		t.Errorf("filled = %s, want 0.01 base", o.Filled)
+	}
+
+	// Buyer receives base minus the 0.1% taker fee: 0.01 - 0.00001 = 0.00999.
+	if got := avail(t, st, buyer, "BTC"); got != "0.00999" {
+		t.Errorf("buyer BTC = %s, want 0.00999", got)
+	}
+	// The whole budget was spent.
+	if got := avail(t, st, buyer, "USDT"); got != "0" {
+		t.Errorf("buyer USDT = %s, want 0", got)
+	}
+	// Seller receives quote minus the 0.1% maker fee: 10 - 0.01 = 9.99.
+	if got := avail(t, st, seller, "USDT"); got != "9.99" {
+		t.Errorf("seller USDT = %s, want 9.99", got)
+	}
+	if got := avail(t, st, seller, "BTC"); got != "0.99" {
+		t.Errorf("seller BTC = %s, want 0.99", got)
+	}
+}
+
+// TestMarketSellBaseQuantity covers the market-sell path (sized in base).
+func TestMarketSellBaseQuantity(t *testing.T) {
+	st, mgr := setup(t)
+	eng, _ := mgr.Get("BTC-USDT")
+	const buyer, seller = int64(1), int64(2)
+	credit(t, st, buyer, "USDT", "100")
+	credit(t, st, seller, "BTC", "0.01")
+
+	// Buyer rests a bid for 0.01 BTC @ 1000.
+	if _, err := eng.Place(&models.Order{
+		UserID: buyer, Side: models.Buy, Type: models.TypeLimit,
+		Price: num.MustParse("1000"), Quantity: num.MustParse("0.01"),
+	}); err != nil {
+		t.Fatalf("buyer bid: %v", err)
+	}
+
+	o, err := eng.Place(&models.Order{
+		UserID: seller, Side: models.Sell, Type: models.TypeMarket,
+		Quantity: num.MustParse("0.01"),
+	})
+	if err != nil {
+		t.Fatalf("market sell: %v", err)
+	}
+	if o.Status != models.StatusFilled || o.Filled.String() != "0.01" {
+		t.Errorf("order = %+v, want filled 0.01", o)
+	}
+	// Seller receives 10 USDT minus the 0.1% taker fee = 9.99.
+	if got := avail(t, st, seller, "USDT"); got != "9.99" {
+		t.Errorf("seller USDT = %s, want 9.99", got)
+	}
+	// Buyer receives 0.01 BTC minus the 0.1% maker fee = 0.00999.
+	if got := avail(t, st, buyer, "BTC"); got != "0.00999" {
+		t.Errorf("buyer BTC = %s, want 0.00999", got)
+	}
+}

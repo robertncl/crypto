@@ -165,3 +165,134 @@ func TestAccrueEarnSkipsRedeemedPosition(t *testing.T) {
 		t.Errorf("status = %s, want redeemed (must not be resurrected)", got.Status)
 	}
 }
+
+// ---------- earn read methods ----------
+
+func TestListEarnProducts(t *testing.T) {
+	st := newStore(t)
+	products, err := st.ListEarnProducts()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(products) < 3 {
+		t.Fatalf("earn products = %d, want the seeded set", len(products))
+	}
+	byID := map[string]models.EarnProduct{}
+	for _, p := range products {
+		byID[p.ID] = p
+	}
+	flex, ok := byID["USDT-FLEX"]
+	if !ok {
+		t.Fatal("USDT-FLEX not seeded")
+	}
+	if flex.Asset != "USDT" || flex.Kind != models.EarnFlexible {
+		t.Errorf("USDT-FLEX = %+v, want a flexible USDT product", flex)
+	}
+	if flex.APR.String() != "0.08" || flex.MinAmount.String() != "10" {
+		t.Errorf("USDT-FLEX apr/min = %s/%s, want 0.08/10", flex.APR, flex.MinAmount)
+	}
+	if flex.TermDays != 0 {
+		t.Errorf("flexible term = %d, want 0", flex.TermDays)
+	}
+	// Fixed-term products carry a term.
+	fixed, ok := byID["USDT-30D"]
+	if !ok {
+		t.Fatal("USDT-30D not seeded")
+	}
+	if fixed.Kind != models.EarnFixed || fixed.TermDays != 30 {
+		t.Errorf("USDT-30D = %+v, want fixed/30d", fixed)
+	}
+}
+
+func TestGetEarnProduct(t *testing.T) {
+	st := newStore(t)
+	p, err := st.GetEarnProduct("BTC-FLEX")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Asset != "BTC" || p.Kind != models.EarnFlexible || p.MaxAmount.Sign() != 0 {
+		t.Errorf("BTC-FLEX = %+v, want flexible BTC, uncapped", p)
+	}
+
+	if _, err := st.GetEarnProduct("NO-SUCH-PRODUCT"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("unknown product err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestListEarnPositionsActiveOnly(t *testing.T) {
+	st := newStore(t)
+	const user = int64(7)
+	active := seedActiveEarn(t, st, user, "pos-active", "1000")
+	redeemed := seedActiveEarn(t, st, user, "pos-redeemed", "500")
+
+	// Close the second one.
+	redeemed.Status = models.EarnRedeemed
+	redeemed.RedeemedAt = 500
+	redeemed.LastAccrualAt = 500
+	if err := st.RedeemEarn("earn_redeem:"+redeemed.ID, 500, redeemPostings(redeemed, "500"), redeemed); err != nil {
+		t.Fatalf("redeem: %v", err)
+	}
+
+	all, err := st.ListEarnPositions(user, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 2 {
+		t.Errorf("all positions = %d, want 2", len(all))
+	}
+
+	onlyActive, err := st.ListEarnPositions(user, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(onlyActive) != 1 || onlyActive[0].ID != active.ID {
+		t.Errorf("active positions = %+v, want only %s", onlyActive, active.ID)
+	}
+
+	// Another user sees nothing.
+	other, err := st.ListEarnPositions(999, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(other) != 0 {
+		t.Errorf("other user's positions = %d, want 0", len(other))
+	}
+}
+
+func TestListActiveEarnPositionsAcrossUsers(t *testing.T) {
+	st := newStore(t)
+	seedActiveEarn(t, st, 1, "u1-pos", "1000")
+	seedActiveEarn(t, st, 2, "u2-pos", "2000")
+	closed := seedActiveEarn(t, st, 3, "u3-pos", "3000")
+
+	closed.Status = models.EarnRedeemed
+	closed.RedeemedAt = 600
+	closed.LastAccrualAt = 600
+	if err := st.RedeemEarn("earn_redeem:"+closed.ID, 600, redeemPostings(closed, "3000"), closed); err != nil {
+		t.Fatalf("redeem: %v", err)
+	}
+
+	// The accrual scheduler only ever sees still-active positions.
+	positions, err := st.ListActiveEarnPositions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(positions) != 2 {
+		t.Fatalf("active positions = %d, want 2 (redeemed excluded)", len(positions))
+	}
+	for _, p := range positions {
+		if p.Status != models.EarnActive {
+			t.Errorf("position %s status = %s, want active", p.ID, p.Status)
+		}
+		if p.ID == closed.ID {
+			t.Errorf("redeemed position %s must not be listed", p.ID)
+		}
+	}
+}
+
+func TestGetEarnPositionNotFound(t *testing.T) {
+	st := newStore(t)
+	if _, err := st.GetEarnPosition("nope"); !errors.Is(err, store.ErrNotFound) {
+		t.Errorf("unknown position err = %v, want ErrNotFound", err)
+	}
+}

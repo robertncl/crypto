@@ -15,6 +15,13 @@ import (
 
 func setup(t *testing.T) (*store.Store, *derivatives.Manager) {
 	t.Helper()
+	return setupWithFunding(t, 60)
+}
+
+// setupWithFunding builds a perp manager with an explicit funding interval, so
+// scheduler-driven tests can use a short tick.
+func setupWithFunding(t *testing.T, fundingSec int64) (*store.Store, *derivatives.Manager) {
+	t.Helper()
 	conn, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatalf("open db: %v", err)
@@ -26,7 +33,7 @@ func setup(t *testing.T) (*store.Store, *derivatives.Manager) {
 	spot, _ := st.ListMarkets()
 	md.Init(spot)
 	perps, _ := st.ListPerpMarkets()
-	mgr := derivatives.NewManager(st, md, hub, 60)
+	mgr := derivatives.NewManager(st, md, hub, fundingSec)
 	if err := mgr.Init(perps); err != nil {
 		t.Fatalf("init perp: %v", err)
 	}
