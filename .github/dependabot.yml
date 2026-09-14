@@ -25,6 +25,15 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      # codeql-action/init writes a config file stamped with its own version and
+      # codeql-action/analyze refuses to read a config from a different version
+      # ("Loaded a configuration file for version X, but running version Y").
+      # init, analyze and upload-sarif must always bump together.
+      codeql-action:
+        patterns: ["github/codeql-action*"]
+      github-actions:
+        patterns: ["*"]
 
   # Base images referenced by the Dockerfile.
   - package-ecosystem: docker
