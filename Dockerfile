@@ -26,8 +26,8 @@ RUN npm run build   # emits /web/dist (tsc --noEmit && vite build)
 ##############################
 # Stage 2 — build the binary #
 ##############################
-FROM cgr.dev/chainguard/go:latest-dev@sha256:47fc9ae960d6a0eaad880136f86cabf4ae043246c82af0b9fad253b5e9c3d16f AS build
-# go1.27.1 — CVE-2026-33818/39821/46600/56853/56858/56859/56860/56862 fixed in 1.26.6+
+FROM cgr.dev/chainguard/go:latest-dev@sha256:ffa820c813d3a6c88458f51619ef8a4f26bb3e4a16d71acdd2472eed7a051b4e AS build
+# go1.27.2 — also fixes net/http CVE-2026-78667 and GO-2026-6611..6617 (stdlib) found in 1.27.1
 USER root
 WORKDIR /src
 # Honor the toolchain pinned in go.mod even if the base ships a different Go.
