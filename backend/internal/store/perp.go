@@ -147,18 +147,34 @@ func scanPerpOrders(rows *sql.Rows) ([]models.PerpOrder, error) {
 	return out, rows.Err()
 }
 
-func (s *Store) InsertPerpOrder(o *models.PerpOrder) error {
-	_, err := s.db.Exec(
-		`INSERT INTO perp_orders(id,user_id,market,side,type,price,quantity,filled,avg_price,leverage,reduce_only,status,created_at,updated_at)
-		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+// PlacePerpOrder atomically applies an order's margin-lock postings (none for
+// reduce-only orders) and inserts the order row in one transaction.
+func (s *Store) PlacePerpOrder(txnID string, createdAt int64, postings []Posting, o *models.PerpOrder) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := s.applyPostingsTx(tx, txnID, createdAt, postings); err != nil {
+		return err
+	}
+	if err := s.insertPerpOrder(tx, o); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *Store) InsertPerpOrder(o *models.PerpOrder) error { return s.insertPerpOrder(nil, o) }
+
+func (s *Store) insertPerpOrder(tx *sql.Tx, o *models.PerpOrder) error {
+	_, err := s.exec(tx, sqlInsertPerpOrder,
 		o.ID, o.UserID, o.Market, o.Side, o.Type, o.Price.Raw(), o.Quantity.Raw(), o.Filled.Raw(),
 		o.AvgPrice.Raw(), o.Leverage, b2i(o.ReduceOnly), o.Status, o.CreatedAt, o.UpdatedAt)
 	return err
 }
 
 func (s *Store) UpdatePerpOrder(o *models.PerpOrder) error {
-	_, err := s.db.Exec(
-		`UPDATE perp_orders SET filled=?, avg_price=?, status=?, updated_at=? WHERE id=?`,
+	_, err := s.exec(nil, sqlUpdatePerpOrder,
 		o.Filled.Raw(), o.AvgPrice.Raw(), o.Status, o.UpdatedAt, o.ID)
 	return err
 }
@@ -219,34 +235,24 @@ func (s *Store) CommitPerp(txnID string, createdAt int64, postings []Posting, tr
 	}
 	defer tx.Rollback()
 
-	if err := applyPostingsTx(tx, txnID, createdAt, postings); err != nil {
+	if err := s.applyPostingsTx(tx, txnID, createdAt, postings); err != nil {
 		return err
 	}
 	for _, p := range positions {
-		if _, err := tx.Exec(
-			`INSERT INTO positions(user_id,market,side,size,entry_price,margin,leverage,realized_pnl,funding_paid,updated_at)
-			 VALUES(?,?,?,?,?,?,?,?,?,?)
-			 ON CONFLICT(user_id,market) DO UPDATE SET
-			   side=excluded.side, size=excluded.size, entry_price=excluded.entry_price,
-			   margin=excluded.margin, leverage=excluded.leverage,
-			   realized_pnl=excluded.realized_pnl, funding_paid=excluded.funding_paid,
-			   updated_at=excluded.updated_at`,
+		if _, err := s.exec(tx, sqlUpsertPosition,
 			p.UserID, p.Market, p.Side, p.Size.Raw(), p.EntryPrice.Raw(), p.Margin.Raw(),
 			p.Leverage, p.RealizedPnL.Raw(), p.FundingPaid.Raw(), p.UpdatedAt); err != nil {
 			return err
 		}
 	}
 	for _, o := range orders {
-		if _, err := tx.Exec(
-			`UPDATE perp_orders SET filled=?, avg_price=?, status=?, updated_at=? WHERE id=?`,
+		if _, err := s.exec(tx, sqlUpdatePerpOrder,
 			o.Filled.Raw(), o.AvgPrice.Raw(), o.Status, o.UpdatedAt, o.ID); err != nil {
 			return err
 		}
 	}
 	if trade != nil {
-		res, err := tx.Exec(
-			`INSERT INTO trades(market,price,quantity,quote_qty,taker_side,buy_order_id,sell_order_id,buy_user_id,sell_user_id,created_at)
-			 VALUES(?,?,?,?,?,?,?,?,?,?)`,
+		res, err := s.exec(tx, sqlInsertTrade,
 			trade.Market, trade.Price.Raw(), trade.Quantity.Raw(), trade.QuoteQty.Raw(), trade.TakerSide,
 			trade.BuyOrderID, trade.SellOrderID, trade.BuyUserID, trade.SellUserID, trade.CreatedAt)
 		if err != nil {

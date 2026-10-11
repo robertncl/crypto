@@ -64,7 +64,7 @@ func TestSideRemoveKeepsLevelWithRemaining(t *testing.T) {
 	s.add(o2)
 	s.remove(o1)
 	best := s.best()
-	if best == nil || levelQty(best).String() != "2" {
+	if best == nil || best.total.String() != "2" {
 		t.Errorf("level qty after removing one order = %v, want 2", best)
 	}
 }
@@ -79,8 +79,8 @@ func TestLevelQtySumsRemaining(t *testing.T) {
 	s := newSide(false)
 	s.add(ro("1", models.Sell, "100", "1.5"))
 	s.add(ro("2", models.Sell, "100", "2.5"))
-	if got := levelQty(s.best()).String(); got != "4" {
-		t.Errorf("levelQty = %s, want 4", got)
+	if got := s.best().total.String(); got != "4" {
+		t.Errorf("level total = %s, want 4", got)
 	}
 }
 

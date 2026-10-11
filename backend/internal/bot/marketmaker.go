@@ -7,6 +7,8 @@ package bot
 
 import (
 	"context"
+	crand "crypto/rand"
+	"encoding/hex"
 	"math"
 	"math/rand"
 	"strconv"
@@ -166,17 +168,36 @@ func (b *Bot) crossPerp(eng *derivatives.Engine, pm models.PerpMarket, mid float
 	})
 }
 
+// ensureUser returns the bot account for email, creating it if needed. Bot
+// accounts are funded and KYC-verified, so their password must never be
+// guessable: each boot sets a fresh random one that is never disclosed (this
+// also rotates the predictable "bot-<email>" password older versions used).
+// The API additionally refuses interactive login for the bot role.
 func (b *Bot) ensureUser(email string) (*models.User, error) {
+	hash, err := randomPasswordHash()
+	if err != nil {
+		return nil, err
+	}
 	if u, err := b.st.GetUserByEmail(email); err == nil {
+		if err := b.st.SetPasswordHash(u.ID, hash); err != nil {
+			return nil, err
+		}
 		return u, nil
 	}
-	hash, _ := auth.HashPassword("bot-" + email)
-	u, err := b.st.CreateUser(email, hash, "bot", time.Now().Unix())
+	u, err := b.st.CreateUser(email, hash, models.RoleBot, time.Now().Unix())
 	if err != nil {
 		return nil, err
 	}
 	_ = b.st.SetKYCStatus(u.ID, "verified")
 	return u, nil
+}
+
+func randomPasswordHash() (string, error) {
+	secret := make([]byte, 32)
+	if _, err := crand.Read(secret); err != nil {
+		return "", err
+	}
+	return auth.HashPassword(hex.EncodeToString(secret))
 }
 
 // fund credits a bot account with a large balance of every asset so it never

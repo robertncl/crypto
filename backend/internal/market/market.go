@@ -106,9 +106,11 @@ func (s *Service) refresh(market string) {
 	since := time.Now().Add(-24 * time.Hour).Unix()
 	db := s.store.DB()
 
+	// All three queries are served (covered, in order) by idx_trades_market_time;
+	// (created_at, id) order matches insertion order within a market.
 	var openRaw, lastRaw, highRaw, lowRaw, volRaw, qvolRaw int64
-	_ = db.QueryRow(`SELECT price FROM trades WHERE market=? AND created_at>=? ORDER BY id ASC LIMIT 1`, market, since).Scan(&openRaw)
-	_ = db.QueryRow(`SELECT price FROM trades WHERE market=? ORDER BY id DESC LIMIT 1`, market).Scan(&lastRaw)
+	_ = db.QueryRow(`SELECT price FROM trades WHERE market=? AND created_at>=? ORDER BY created_at ASC, id ASC LIMIT 1`, market, since).Scan(&openRaw)
+	_ = db.QueryRow(`SELECT price FROM trades WHERE market=? ORDER BY created_at DESC, id DESC LIMIT 1`, market).Scan(&lastRaw)
 	_ = db.QueryRow(`SELECT COALESCE(MAX(price),0),COALESCE(MIN(price),0),COALESCE(SUM(quantity),0),COALESCE(SUM(quote_qty),0)
 	                 FROM trades WHERE market=? AND created_at>=?`, market, since).Scan(&highRaw, &lowRaw, &volRaw, &qvolRaw)
 

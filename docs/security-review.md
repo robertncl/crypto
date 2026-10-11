@@ -70,7 +70,22 @@ simulated-deposit behavior, but most must be fixed before any real deployment.
 | F6 | ✅ Fixed | **Security-headers** middleware: strict **CSP**, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `HSTS`. Verified present; CSP confirmed not to break the WebSocket (`connect-src 'self'`). |
 | F8 | ✅ Fixed | 500 path now **logs internally and returns a generic message**; wallet handlers routed through the sanitizing mapper. |
 | F1 | ⚠️ By design (demo) | Left intentionally for the simulated-custody demo; flagged for removal before production. |
-| F3, F7, F9–F12 | ⬜ Open | Product decisions (MFA, real KYC, session revocation, WS-ticket, etc.) — not changed in this pass. |
+| F3 | 🟡 Partial | Password policy is now 8–72 bytes (72 is bcrypt's limit; longer input used to 500). MFA and real KYC remain open. |
+| F9 | 🟡 Partial | WS `CheckOrigin` now admits only same-origin and configured SPA origins; REST no longer accepts `?token=`. The WS handshake still carries the JWT in its URL (a single-use ticket is still open). |
+| F11 | ✅ Fixed | `num.Dec` arithmetic saturates instead of wrapping, and order sizing rejects overflow (see F14). |
+| F7, F10, F12 | ⬜ Open | Product decisions (session revocation, registration enumeration, SIEM logging). |
+
+### Hardening pass 2 (2026-10)
+
+| ID | Severity | Status | Finding & fix |
+|----|----------|--------|---------------|
+| F13 | **Critical** | ✅ Fixed | **Bot account takeover.** The market-maker accounts (`liquidity-maker@` / `liquidity-taker@exchange.local`) had password `"bot-" + email`, which can be read from the public source. They are KYC-verified and funded with 100M of each asset. Verified live on `master`: logging in as the bot and withdrawing 500 BTC succeeded. **Fix:** each boot sets a random, never-disclosed password on the bot accounts, which also rotates the old one on existing databases, and login refuses the `bot` role outright. |
+| F14 | High | ✅ Fixed | **Order-notional overflow corrupts other users' orders.** `price.Mul(qty)` wrapped past `int64`: a 1.8×10^11 USDT bid passed validation while locking only ~263 USDT. Its fill then failed to commit, but `executeFill` had already mutated the maker in memory. Verified: the attacker zeroed the top-of-book level and **stranded the maker's locked BTC** (still locked after the maker cancelled). The attacker's own order was left as a ghost holding its funds. **Fix:** overflow-checked notional validation (spot and perp). Fills snapshot in-memory state and roll it back if the commit fails. A failed match closes the taker and releases its reservation instead of leaving it open. |
+| F15 | Medium | ✅ Fixed | **Login timing reveals registered emails.** An unknown email returned without running bcrypt, so it answered far faster than a wrong password. Unknown emails now run a dummy bcrypt compare. |
+| F16 | Low | ✅ Fixed | **Edge hardening.** JWTs must be HS256 and carry `exp`. API responses send `Cache-Control: no-store`. `/ws` handshakes are rate-limited per IP. The server sets `ReadTimeout`/`WriteTimeout`/`IdleTimeout`/`MaxHeaderBytes` (WebSockets clear these on upgrade; verified live past 30s). Vite dev origins are allowed for CORS only when `DEV=true`. |
+
+Regression tests: `engine/engine_safety_test.go`, `derivatives/engine_safety_test.go`,
+`num/overflow_test.go`, `api/hardening_test.go`, `auth/parse_hardening_test.go`.
 
 > **Prod note:** the in-app limiter keys by remote IP (`httprate.LimitByIP`). Behind
 > a load balancer, switch to `httprate.KeyByRealIP` (trusting `X-Forwarded-For`

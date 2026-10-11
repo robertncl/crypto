@@ -30,10 +30,15 @@ var (
 )
 
 type Store struct {
-	db *sql.DB
+	db    *sql.DB
+	stmts map[string]*sql.Stmt // prepared hot-path statements (see stmts.go)
 }
 
-func New(db *sql.DB) *Store { return &Store{db: db} }
+func New(db *sql.DB) *Store {
+	s := &Store{db: db}
+	s.prepareHot()
+	return s
+}
 
 func (s *Store) DB() *sql.DB { return s.db }
 
@@ -58,6 +63,11 @@ func (s *Store) GetUserByEmail(email string) (*models.User, error) {
 func (s *Store) GetUserByID(id int64) (*models.User, error) {
 	row := s.db.QueryRow(`SELECT id,email,password_hash,kyc_status,role,created_at FROM users WHERE id=?`, id)
 	return scanUser(row)
+}
+
+func (s *Store) SetPasswordHash(userID int64, hash string) error {
+	_, err := s.db.Exec(`UPDATE users SET password_hash=? WHERE id=?`, hash, userID)
+	return err
 }
 
 func (s *Store) SetKYCStatus(userID int64, status string) error {
@@ -160,7 +170,7 @@ func scanMarketRows(rows *sql.Rows) (*models.Market, error) {
 // ---------- Balances ----------
 
 func (s *Store) ListBalances(userID int64) ([]models.Balance, error) {
-	rows, err := s.db.Query(`SELECT asset,available,locked FROM balances WHERE user_id=? ORDER BY asset`, userID)
+	rows, err := s.query(sqlListBalances, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -215,42 +225,31 @@ func (s *Store) ApplyPostings(txnID string, createdAt int64, postings []Posting)
 		return err
 	}
 	defer tx.Rollback()
-	if err := applyPostingsTx(tx, txnID, createdAt, postings); err != nil {
+	if err := s.applyPostingsTx(tx, txnID, createdAt, postings); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
 // applyPostingsTx applies postings within an existing transaction.
-func applyPostingsTx(tx *sql.Tx, txnID string, createdAt int64, postings []Posting) error {
+func (s *Store) applyPostingsTx(tx *sql.Tx, txnID string, createdAt int64, postings []Posting) error {
 	for _, p := range postings {
 		if p.DeltaAvailable.IsZero() && p.DeltaLocked.IsZero() {
 			continue
 		}
-		// Upsert the balance row then apply the delta.
-		if _, err := tx.Exec(
-			`INSERT INTO balances(user_id,asset,available,locked) VALUES(?,?,0,0)
-			 ON CONFLICT(user_id,asset) DO NOTHING`, p.UserID, p.Asset); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(
-			`UPDATE balances SET available=available+?, locked=locked+? WHERE user_id=? AND asset=?`,
-			p.DeltaAvailable.Raw(), p.DeltaLocked.Raw(), p.UserID, p.Asset); err != nil {
+		// Upsert the balance row, apply the delta and read back the new
+		// balance in a single statement.
+		var av, lk int64
+		if err := s.queryRow(tx, sqlUpsertBalance,
+			p.UserID, p.Asset, p.DeltaAvailable.Raw(), p.DeltaLocked.Raw()).Scan(&av, &lk); err != nil {
 			return err
 		}
 		// Validate non-negativity after the change.
-		var av, lk int64
-		if err := tx.QueryRow(`SELECT available,locked FROM balances WHERE user_id=? AND asset=?`,
-			p.UserID, p.Asset).Scan(&av, &lk); err != nil {
-			return err
-		}
 		if av < 0 || lk < 0 {
 			return fmt.Errorf("%w: user=%d asset=%s available=%d locked=%d",
 				ErrInsufficientFunds, p.UserID, p.Asset, av, lk)
 		}
-		if _, err := tx.Exec(
-			`INSERT INTO ledger_entries(txn_id,user_id,asset,delta_available,delta_locked,reason,ref,created_at)
-			 VALUES(?,?,?,?,?,?,?,?)`,
+		if _, err := s.exec(tx, sqlInsertLedger,
 			txnID, p.UserID, p.Asset, p.DeltaAvailable.Raw(), p.DeltaLocked.Raw(), p.Reason, p.Ref, createdAt); err != nil {
 			return err
 		}
@@ -269,20 +268,17 @@ func (s *Store) CommitFill(txnID string, createdAt int64, postings []Posting, tr
 	}
 	defer tx.Rollback()
 
-	if err := applyPostingsTx(tx, txnID, createdAt, postings); err != nil {
+	if err := s.applyPostingsTx(tx, txnID, createdAt, postings); err != nil {
 		return err
 	}
-	res, err := tx.Exec(
-		`INSERT INTO trades(market,price,quantity,quote_qty,taker_side,buy_order_id,sell_order_id,buy_user_id,sell_user_id,created_at)
-		 VALUES(?,?,?,?,?,?,?,?,?,?)`,
+	res, err := s.exec(tx, sqlInsertTrade,
 		trade.Market, trade.Price.Raw(), trade.Quantity.Raw(), trade.QuoteQty.Raw(), trade.TakerSide,
 		trade.BuyOrderID, trade.SellOrderID, trade.BuyUserID, trade.SellUserID, trade.CreatedAt)
 	if err != nil {
 		return err
 	}
 	for _, o := range orders {
-		if _, err := tx.Exec(
-			`UPDATE orders SET filled=?, quote_filled=?, fee_paid=?, status=?, updated_at=? WHERE id=?`,
+		if _, err := s.exec(tx, sqlUpdateOrder,
 			o.Filled.Raw(), o.QuoteFilled.Raw(), o.FeePaid.Raw(), o.Status, o.UpdatedAt, o.ID); err != nil {
 			return err
 		}
@@ -296,18 +292,35 @@ func (s *Store) CommitFill(txnID string, createdAt int64, postings []Posting, tr
 
 // ---------- Orders ----------
 
-func (s *Store) InsertOrder(o *models.Order) error {
-	_, err := s.db.Exec(
-		`INSERT INTO orders(id,user_id,market,side,type,price,quantity,filled,quote_filled,fee_paid,status,created_at,updated_at)
-		 VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+// PlaceOrder atomically reserves an order's funds (the lock postings) and
+// inserts the order row, so an order never exists without its reservation —
+// and placement costs one commit instead of two.
+func (s *Store) PlaceOrder(txnID string, createdAt int64, postings []Posting, o *models.Order) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := s.applyPostingsTx(tx, txnID, createdAt, postings); err != nil {
+		return err
+	}
+	if err := s.insertOrder(tx, o); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (s *Store) InsertOrder(o *models.Order) error { return s.insertOrder(nil, o) }
+
+func (s *Store) insertOrder(tx *sql.Tx, o *models.Order) error {
+	_, err := s.exec(tx, sqlInsertOrder,
 		o.ID, o.UserID, o.Market, o.Side, o.Type, o.Price.Raw(), o.Quantity.Raw(),
 		o.Filled.Raw(), o.QuoteFilled.Raw(), o.FeePaid.Raw(), o.Status, o.CreatedAt, o.UpdatedAt)
 	return err
 }
 
 func (s *Store) UpdateOrder(o *models.Order) error {
-	_, err := s.db.Exec(
-		`UPDATE orders SET filled=?, quote_filled=?, fee_paid=?, status=?, updated_at=? WHERE id=?`,
+	_, err := s.exec(nil, sqlUpdateOrder,
 		o.Filled.Raw(), o.QuoteFilled.Raw(), o.FeePaid.Raw(), o.Status, o.UpdatedAt, o.ID)
 	return err
 }
@@ -414,10 +427,14 @@ func (s *Store) InsertTrade(t *models.Trade) (int64, error) {
 	return res.LastInsertId()
 }
 
+// ListTradesByMarket returns a market's most recent trades, newest first. Trades
+// within a market are inserted by its single engine goroutine, so (created_at,
+// id) order equals id order — and is served directly by idx_trades_market_time
+// instead of sorting the market's whole history.
 func (s *Store) ListTradesByMarket(market string, limit int) ([]models.Trade, error) {
 	rows, err := s.db.Query(
 		`SELECT id,market,price,quantity,quote_qty,taker_side,buy_order_id,sell_order_id,buy_user_id,sell_user_id,created_at
-		 FROM trades WHERE market=? ORDER BY id DESC LIMIT ?`, market, limit)
+		 FROM trades WHERE market=? ORDER BY created_at DESC, id DESC LIMIT ?`, market, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -459,14 +476,25 @@ func scanTrades(rows *sql.Rows) ([]models.Trade, error) {
 }
 
 // Candle aggregates trades into OHLCV buckets of intervalSec seconds, returning
-// up to limit most-recent buckets in ascending time order.
+// the buckets that have trades among the `limit` bucket slots ending at the
+// market's latest trade, in ascending time order.
 func (s *Store) Candles(market string, intervalSec int64, limit int) ([]models.Candle, error) {
-	// Group trades by floor(created_at/interval)*interval. SQLite has no cheap
-	// window frame for first/last-by-time, so instead of a bucketed query we
-	// fetch every trade for the market and fold buckets in Go, then keep only
-	// the most recent `limit` buckets.
+	// Anchor the window on the latest trade (not wall-clock time) so a quiet
+	// market still charts its recent history, then read only the trades inside
+	// the window — never the market's full history. Buckets are folded in Go
+	// because SQLite has no cheap first/last-by-time aggregate for open/close.
+	var last int64
+	err := s.db.QueryRow(`SELECT created_at FROM trades WHERE market=? ORDER BY created_at DESC, id DESC LIMIT 1`, market).Scan(&last)
+	if errors.Is(err, sql.ErrNoRows) {
+		return []models.Candle{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	since := (last/intervalSec - int64(limit-1)) * intervalSec
 	rows, err := s.db.Query(
-		`SELECT price,quantity,created_at FROM trades WHERE market=? ORDER BY id ASC`, market)
+		`SELECT price,quantity,created_at FROM trades WHERE market=? AND created_at>=? ORDER BY created_at ASC, id ASC`,
+		market, since)
 	if err != nil {
 		return nil, err
 	}

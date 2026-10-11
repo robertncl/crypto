@@ -4,6 +4,7 @@ package auth
 import (
 	"errors"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -11,6 +12,31 @@ import (
 )
 
 var ErrInvalidToken = errors.New("invalid token")
+
+// MinPasswordLen and MaxPasswordLen bound accepted passwords. bcrypt only uses
+// the first 72 bytes (and rejects longer input), so longer passwords are
+// refused up front rather than failing or being silently truncated.
+const (
+	MinPasswordLen = 8
+	MaxPasswordLen = 72
+)
+
+// dummyHash is a bcrypt hash of a throwaway secret, computed on first use.
+var dummyHash = sync.OnceValue(func() []byte {
+	h, _ := bcrypt.GenerateFromPassword([]byte("nebula-login-timing-equalizer"), bcrypt.DefaultCost)
+	return h
+})
+
+// SpendPasswordCheck runs a bcrypt comparison against a dummy hash and discards
+// the result. Login calls it when no account matches, so a miss costs the same
+// time as a wrong password and response timing does not reveal which emails
+// are registered.
+func SpendPasswordCheck(pw string) {
+	if len(pw) > MaxPasswordLen {
+		pw = pw[:MaxPasswordLen]
+	}
+	_ = bcrypt.CompareHashAndPassword(dummyHash(), []byte(pw))
+}
 
 // HashPassword returns a bcrypt hash of the plaintext password.
 func HashPassword(pw string) (string, error) {
@@ -55,6 +81,8 @@ func (m *Manager) Issue(userID int64, role string) (string, error) {
 }
 
 // Parse validates a token's signature and expiry and returns the user id and role.
+// Only HS256 (the algorithm Issue uses) is accepted, and a token without an
+// expiry is rejected rather than treated as never-expiring.
 func (m *Manager) Parse(tokenStr string) (userID int64, role string, err error) {
 	claims := &Claims{}
 	tok, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (any, error) {
@@ -62,7 +90,7 @@ func (m *Manager) Parse(tokenStr string) (userID int64, role string, err error) 
 			return nil, ErrInvalidToken
 		}
 		return m.secret, nil
-	})
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithExpirationRequired())
 	if err != nil || !tok.Valid {
 		return 0, "", ErrInvalidToken
 	}

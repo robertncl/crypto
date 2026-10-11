@@ -87,7 +87,12 @@ CREATE TABLE IF NOT EXISTS trades (
     sell_user_id  INTEGER NOT NULL,
     created_at    INTEGER NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_trades_market ON trades(market, created_at DESC);
+-- Market-data reads (tickers, candles, trade tape) scan a market's recent trades
+-- in (created_at, id) order. This index serves them in order with no sort step,
+-- and covers the columns they read so no table lookups are needed. It replaces
+-- the old (market, created_at DESC) index, which forced full-history sorts.
+DROP INDEX IF EXISTS idx_trades_market;
+CREATE INDEX IF NOT EXISTS idx_trades_market_time ON trades(market, created_at, id, price, quantity, quote_qty);
 CREATE INDEX IF NOT EXISTS idx_trades_buyer  ON trades(buy_user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_trades_seller ON trades(sell_user_id, created_at DESC);
 

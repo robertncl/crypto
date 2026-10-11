@@ -94,20 +94,36 @@ factor of `Scale`:
 
 So the math is `(d.i * e.i) / Scale`. But `d.i * e.i` can **overflow `int64`**
 for realistic values (a price near 10^12 times a quantity near 10^12 is ~10^24,
-far beyond int64's ~9.2×10^18). Nebula does the intermediate multiply in
-arbitrary-precision `math/big` and only then narrows back to `int64`:
+far beyond int64's ~9.2×10^18). Nebula computes the full 128-bit product with
+`math/bits` (no heap allocation, so it is cheap on the matching hot path) and
+divides out one `Scale`:
 
 ```go
-func (d Dec) Mul(e Dec) Dec {
-    a := big.NewInt(d.i)
-    a.Mul(a, big.NewInt(e.i))
-    a.Quo(a, bigScale) // divide out one Scale, truncating toward zero
-    return Dec{i: a.Int64()}
+func (d Dec) MulChecked(e Dec) (Dec, bool) {
+    hi, lo := bits.Mul64(uabs(d.i), uabs(e.i)) // exact 128-bit product
+    if hi >= uint64(Scale) {                   // quotient needs > 64 bits
+        return Zero, false
+    }
+    q, _ := bits.Div64(hi, lo, uint64(Scale))  // divide out one Scale, truncating
+    ...                                        // re-apply sign, range-check
 }
 ```
 
-This is the single most important line of defensive math in the codebase: it's
-why computing a trade's value (`price.Mul(qty)`) can never silently overflow.
+The intermediate can't overflow, but the **result** still can: a price of 10^8
+times a quantity of ~1,845 is ~1.8×10^11, beyond what an `int64` scaled by 10^8
+can hold. Narrowing that back to `int64` would silently **wrap around**, and an
+earlier version of Nebula did exactly that: the order's value came out as about
+263 USDT, so a huge bid locked pennies. Two rules now apply:
+
+- `Mul`, `Div`, `Add` and `Sub` **saturate** at `MaxDec`/`MinDec` instead of
+  wrapping, so an oversized value can only ever become *larger*, never small or
+  negative.
+- Code that sizes money from user input uses `MulChecked` and **rejects** the
+  overflow. The matching engines refuse any order whose `price × quantity` doesn't
+  fit ("order value too large").
+
+This is the most important piece of defensive math in the codebase: a value
+that wraps around turns a giant order into a cheap one.
 
 ### Comparisons and helpers
 
@@ -160,8 +176,9 @@ place, but a float must never decide a balance.** Settlement math is 100%
 - Floating point is exact for fractions like 1/2 but not 1/10 — fatal for money.
 - Exchanges use **fixed-point**: store integers of the smallest unit. Nebula uses
   **8 decimals** (`Scale = 10^8`), like Bitcoin's satoshi.
-- `num.Dec` wraps an `int64`; `Mul`/`Div` route through `math/big` to avoid
-  overflow.
+- `num.Dec` wraps an `int64`; `Mul`/`Div` use exact 128-bit intermediates, and
+  every operation **saturates** rather than wrapping on overflow. Order sizing
+  uses `MulChecked` to reject out-of-range values.
 - Money crosses the API as **JSON strings** to survive JavaScript.
 - Floats are allowed only for **display** (charts) and **simulation** (the bot).
 

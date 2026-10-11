@@ -39,10 +39,28 @@ type restingOrder struct {
 
 func (o *restingOrder) isMarket() bool { return o.typ == models.TypeMarket }
 
-// priceLevel is a FIFO queue of orders sharing a price (time priority).
+// orderSnapshot captures the mutable fill state of a restingOrder.
+type orderSnapshot struct {
+	remaining, budget, locked num.Dec
+	mo                        models.Order
+}
+
+func (o *restingOrder) snapshot() orderSnapshot {
+	return orderSnapshot{remaining: o.remaining, budget: o.budget, locked: o.locked, mo: *o.mo}
+}
+
+func (o *restingOrder) restore(s orderSnapshot) {
+	o.remaining, o.budget, o.locked = s.remaining, s.budget, s.locked
+	*o.mo = s.mo
+}
+
+// priceLevel is a FIFO queue of orders sharing a price (time priority). total
+// is the running sum of the orders' remaining quantity, maintained on every
+// add/fill/remove so depth snapshots are O(levels) rather than O(orders).
 type priceLevel struct {
 	price  num.Dec
 	orders *list.List // of *restingOrder
+	total  num.Dec
 }
 
 // side is one half of the book (all bids or all asks).
@@ -70,6 +88,7 @@ func (s *side) add(o *restingOrder) {
 	}
 	o.elem = lvl.orders.PushBack(o)
 	o.level = lvl
+	lvl.total = lvl.total.Add(o.remaining)
 }
 
 // remove detaches a resting order from its level.
@@ -78,6 +97,7 @@ func (s *side) remove(o *restingOrder) {
 		return
 	}
 	o.level.orders.Remove(o.elem)
+	o.level.total = o.level.total.Sub(o.remaining)
 	o.elem = nil
 	if o.level.orders.Len() == 0 {
 		key := o.level.price.Raw()
@@ -151,22 +171,14 @@ func (b *book) snapshot(market string, limit int) DepthSnapshot {
 	// bids: iterate from highest price downward
 	for i := len(b.bids.prices) - 1; i >= 0 && len(ds.Bids) < limit; i-- {
 		lvl := b.bids.levels[b.bids.prices[i]]
-		ds.Bids = append(ds.Bids, DepthLevel{Price: lvl.price, Qty: levelQty(lvl)})
+		ds.Bids = append(ds.Bids, DepthLevel{Price: lvl.price, Qty: lvl.total})
 	}
 	// asks: iterate from lowest price upward
 	for i := 0; i < len(b.asks.prices) && len(ds.Asks) < limit; i++ {
 		lvl := b.asks.levels[b.asks.prices[i]]
-		ds.Asks = append(ds.Asks, DepthLevel{Price: lvl.price, Qty: levelQty(lvl)})
+		ds.Asks = append(ds.Asks, DepthLevel{Price: lvl.price, Qty: lvl.total})
 	}
 	return ds
-}
-
-func levelQty(lvl *priceLevel) num.Dec {
-	sum := num.Zero
-	for e := lvl.orders.Front(); e != nil; e = e.Next() {
-		sum = sum.Add(e.Value.(*restingOrder).remaining)
-	}
-	return sum
 }
 
 func (b *book) bestBid() num.Dec {

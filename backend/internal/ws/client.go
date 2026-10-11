@@ -76,8 +76,12 @@ func (c *Client) resolveTopic(channel string) (string, bool) {
 }
 
 func (c *Client) readPump() {
+	// Track this connection's active topics so we can enforce a per-client cap
+	// and unsubscribe exactly these on disconnect. Only this goroutine touches
+	// it, so no lock is needed.
+	subscribed := map[string]struct{}{}
 	defer func() {
-		c.hub.remove(c)
+		c.hub.remove(c, subscribed)
 		_ = c.conn.Close()
 	}()
 	c.conn.SetReadLimit(maxMessageSize)
@@ -85,9 +89,6 @@ func (c *Client) readPump() {
 	c.conn.SetPongHandler(func(string) error {
 		return c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	})
-	// Track this connection's active topics so we can enforce a per-client cap.
-	// Only this goroutine touches it, so no lock is needed.
-	subscribed := map[string]struct{}{}
 	for {
 		_, raw, err := c.conn.ReadMessage()
 		if err != nil {

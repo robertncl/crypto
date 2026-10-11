@@ -9,6 +9,7 @@ package derivatives
 import (
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"time"
 
@@ -134,16 +135,16 @@ func (e *Engine) place(o *models.PerpOrder) (*models.PerpOrder, error) {
 	if err != nil {
 		return nil, err
 	}
-	if estPrice.Mul(o.Quantity).Lt(e.mkt.MinNotional) {
+	notional, ok := estPrice.MulChecked(o.Quantity)
+	if !ok {
+		return nil, fmt.Errorf("%w: order value too large", ErrBadOrder)
+	}
+	if notional.Lt(e.mkt.MinNotional) {
 		return nil, fmt.Errorf("%w: notional below minimum %s", ErrBadOrder, e.mkt.MinNotional)
 	}
 
-	lockMargin, err := e.lockOrderMargin(o, estPrice, now)
+	lockMargin, err := e.placeWithMargin(o, estPrice, now)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := e.st.InsertPerpOrder(o); err != nil {
 		return nil, err
 	}
 
@@ -154,19 +155,22 @@ func (e *Engine) place(o *models.PerpOrder) (*models.PerpOrder, error) {
 	}
 
 	affected := map[int64]bool{o.UserID: true}
-	if err := e.match(taker, now, affected); err != nil {
-		return nil, err
+	matchErr := e.match(taker, now, affected)
+	if matchErr != nil {
+		// Unexpected settlement failure: the failed fill was rolled back, fills
+		// before it stand. Close the order (never rest a possibly-crossing
+		// remainder) and release its leftover margin so nothing is stranded.
+		log.Printf("perp engine %s: order %s: %v", e.mkt.Symbol, o.ID, matchErr)
 	}
 
-	rest := o.Type == models.TypeLimit && taker.remaining.Sign() > 0 && !e.reduceExhausted(taker)
+	rest := matchErr == nil && o.Type == models.TypeLimit && taker.remaining.Sign() > 0 && !e.reduceExhausted(taker)
 	if rest {
-		o.Status = statusFor(o)
-		o.UpdatedAt = time.Now().Unix()
+		// No write needed: PlacePerpOrder inserted the row and each fill's
+		// CommitPerp persisted its status, so it is already current.
 		e.book.add(taker)
-		_ = e.st.UpdatePerpOrder(o)
 	} else {
 		e.unlockLeftover(taker, time.Now().Unix())
-		if o.Filled.Sign() > 0 {
+		if o.Filled.Sign() > 0 && matchErr == nil {
 			o.Status = models.StatusFilled
 		} else {
 			o.Status = models.StatusCanceled
@@ -179,6 +183,9 @@ func (e *Engine) place(o *models.PerpOrder) (*models.PerpOrder, error) {
 	e.publishPositions(affected)
 	e.publishBalances(affected)
 	e.publishDepth()
+	if matchErr != nil {
+		return nil, matchErr
+	}
 	return o, nil
 }
 
@@ -229,19 +236,21 @@ func (e *Engine) estimateFillPrice(o *models.PerpOrder) (num.Dec, error) {
 	return price, nil
 }
 
-// lockOrderMargin pre-locks isolated margin for an order that may open or
-// increase a position, sized at estPrice/leverage. Reduce-only orders free
-// margin instead of locking it, so they lock nothing.
-func (e *Engine) lockOrderMargin(o *models.PerpOrder, estPrice num.Dec, now int64) (num.Dec, error) {
-	if o.ReduceOnly {
-		return num.Zero, nil
+// placeWithMargin persists the order and, in the same transaction, pre-locks
+// isolated margin for an order that may open or increase a position, sized at
+// estPrice/leverage. Reduce-only orders free margin instead of locking it, so
+// they lock nothing. Returns the margin locked.
+func (e *Engine) placeWithMargin(o *models.PerpOrder, estPrice num.Dec, now int64) (num.Dec, error) {
+	lockMargin := num.Zero
+	var postings []store.Posting
+	if !o.ReduceOnly {
+		lockMargin = estPrice.Mul(o.Quantity).Div(num.FromInt(int64(o.Leverage)))
+		postings = []store.Posting{{
+			UserID: o.UserID, Asset: settle, DeltaAvailable: lockMargin.Neg(), DeltaLocked: lockMargin,
+			Reason: "perp_order_lock", Ref: o.ID,
+		}}
 	}
-	lockMargin := estPrice.Mul(o.Quantity).Div(num.FromInt(int64(o.Leverage)))
-	err := e.st.ApplyPostings("perplock:"+o.ID, now, []store.Posting{{
-		UserID: o.UserID, Asset: settle, DeltaAvailable: lockMargin.Neg(), DeltaLocked: lockMargin,
-		Reason: "perp_order_lock", Ref: o.ID,
-	}})
-	if err != nil {
+	if err := e.st.PlacePerpOrder("perplock:"+o.ID, now, postings, o); err != nil {
 		if errors.Is(err, store.ErrInsufficientFunds) {
 			return num.Zero, store.ErrInsufficientFunds
 		}
@@ -304,6 +313,7 @@ func (e *Engine) match(taker *restingOrder, now int64, affected map[int64]bool) 
 		if err := e.executeFill(taker, maker, matchQty, lvl.price, now, affected); err != nil {
 			return err
 		}
+		lvl.total = lvl.total.Sub(matchQty)
 		if maker.remaining.Sign() <= 0 {
 			e.book.remove(maker)
 		}
@@ -314,6 +324,9 @@ func (e *Engine) executeFill(taker, maker *restingOrder, qty, price num.Dec, now
 	quote := price.Mul(qty)
 	takerPos := e.copyPos(taker.userID)
 	makerPos := e.copyPos(maker.userID)
+	// settle() updates the orders and their locked margin ahead of the commit;
+	// snapshot them so a failed commit leaves the book matching the database.
+	takerSnap, makerSnap := taker.snapshot(), maker.snapshot()
 
 	var postings []store.Posting
 	postings = append(postings, e.settle(taker, takerPos, price, qty, e.mkt.TakerFee, now)...)
@@ -332,6 +345,8 @@ func (e *Engine) executeFill(taker, maker *restingOrder, qty, price num.Dec, now
 
 	txnID := "perpfill:" + uuid.NewString()
 	if err := e.st.CommitPerp(txnID, now, postings, trade, []*models.Position{takerPos, makerPos}, []*models.PerpOrder{taker.mo, maker.mo}); err != nil {
+		taker.restore(takerSnap)
+		maker.restore(makerSnap)
 		return fmt.Errorf("commit perp fill: %w", err)
 	}
 
@@ -686,11 +701,16 @@ func (e *Engine) publishBalances(affected map[int64]bool) {
 		if uid < 0 {
 			continue
 		}
+		// Skip the balance query on the matching goroutine when nobody listens.
+		topic := "balances:" + strconv.FormatInt(uid, 10)
+		if !e.hub.HasSubscribers(topic) {
+			continue
+		}
 		bals, err := e.st.ListBalances(uid)
 		if err != nil {
 			continue
 		}
-		e.hub.Publish("balances:"+strconv.FormatInt(uid, 10), bals)
+		e.hub.Publish(topic, bals)
 	}
 }
 

@@ -140,7 +140,7 @@ func (s *Store) SubscribeEarn(txnID string, createdAt int64, postings []Posting,
 		return err
 	}
 	defer tx.Rollback()
-	if err := applyPostingsTx(tx, txnID, createdAt, postings); err != nil {
+	if err := s.applyPostingsTx(tx, txnID, createdAt, postings); err != nil {
 		return err
 	}
 	if err := insertEarnPositionTx(tx, pos); err != nil {
@@ -162,7 +162,7 @@ func (s *Store) RedeemEarn(txnID string, createdAt int64, postings []Posting, po
 		return err
 	}
 	defer tx.Rollback()
-	if err := applyPostingsTx(tx, txnID, createdAt, postings); err != nil {
+	if err := s.applyPostingsTx(tx, txnID, createdAt, postings); err != nil {
 		return err
 	}
 	res, err := tx.Exec(
@@ -193,7 +193,7 @@ func (s *Store) AccrueEarn(txnID string, createdAt int64, postings []Posting, po
 		return err
 	}
 	defer tx.Rollback()
-	if err := applyPostingsTx(tx, txnID, createdAt, postings); err != nil {
+	if err := s.applyPostingsTx(tx, txnID, createdAt, postings); err != nil {
 		return err
 	}
 	res, err := tx.Exec(

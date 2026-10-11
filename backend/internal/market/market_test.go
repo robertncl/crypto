@@ -11,7 +11,7 @@ import (
 	"cryptoex/internal/ws"
 )
 
-func newService(t *testing.T) (*Service, *store.Store) {
+func newService(t testing.TB) (*Service, *store.Store) {
 	t.Helper()
 	conn, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {

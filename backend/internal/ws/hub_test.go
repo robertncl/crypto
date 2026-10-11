@@ -73,19 +73,40 @@ func TestHubUnsubscribe(t *testing.T) {
 func TestHubRemove(t *testing.T) {
 	h := NewHub()
 	c := newTestClient()
+	other := newTestClient()
 	h.subscribe(c, "a")
 	h.subscribe(c, "b")
-	h.remove(c)
+	h.subscribe(other, "b")
+	h.remove(c, map[string]struct{}{"a": {}, "b": {}})
 	h.Publish("a", "data")
 	h.Publish("b", "data")
 
 	if len(c.send) != 0 {
 		t.Error("should not receive after remove")
 	}
+	if len(other.send) != 1 {
+		t.Error("other subscribers must be unaffected by remove")
+	}
 	h.mu.RLock()
 	defer h.mu.RUnlock()
-	if len(h.topics) != 0 {
-		t.Errorf("topics not cleaned up after remove: %d remain", len(h.topics))
+	if _, ok := h.topics["a"]; ok || len(h.topics) != 1 {
+		t.Errorf("topics after remove = %v, want only b", h.topics)
+	}
+}
+
+func TestHubHasSubscribers(t *testing.T) {
+	h := NewHub()
+	if h.HasSubscribers("x") {
+		t.Error("empty hub reports subscribers")
+	}
+	c := newTestClient()
+	h.subscribe(c, "x")
+	if !h.HasSubscribers("x") {
+		t.Error("subscribed topic reports none")
+	}
+	h.unsubscribe(c, "x")
+	if h.HasSubscribers("x") {
+		t.Error("topic still reports subscribers after unsubscribe")
 	}
 }
 

@@ -47,7 +47,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
         <label className="field field--stack">
           <span className="field__label">Password</span>
           <input
-            type="password" required minLength={6}
+            type="password" required minLength={8} maxLength={72}
             autoComplete={isRegister ? "new-password" : "current-password"}
             value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••"
           />

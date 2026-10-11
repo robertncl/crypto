@@ -18,8 +18,8 @@ func TestBearer(t *testing.T) {
 		{"lowercase bearer", "bearer abc123", "", "abc123"},
 		{"mixed case", "BeArEr abc123", "", "abc123"},
 		{"trims surrounding spaces", "Bearer   abc123  ", "", "abc123"},
-		{"no header falls back to query", "", "querytoken", "querytoken"},
-		{"header takes precedence over query", "Bearer headertoken", "querytoken", "headertoken"},
+		{"query param is not accepted", "", "querytoken", ""},
+		{"header used, query ignored", "Bearer headertoken", "querytoken", "headertoken"},
 		{"empty everything", "", "", ""},
 		{"non-bearer scheme ignored", "Basic abc123", "", ""},
 	}
@@ -104,12 +104,12 @@ func TestMiddleware(t *testing.T) {
 		}
 	})
 
-	t.Run("token via query param", func(t *testing.T) {
+	t.Run("token via query param is rejected", func(t *testing.T) {
 		r := httptest.NewRequest("GET", "/?token="+token, nil)
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, r)
-		if w.Code != http.StatusOK {
-			t.Errorf("status = %d, want 200 (query-param token)", w.Code)
+		if w.Code != http.StatusUnauthorized {
+			t.Errorf("status = %d, want 401 (tokens must not travel in URLs)", w.Code)
 		}
 	})
 }

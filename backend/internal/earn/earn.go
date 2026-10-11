@@ -268,11 +268,15 @@ func interestFor(principal, apr num.Dec, from, to int64) num.Dec {
 }
 
 func (s *Service) publishBalances(userID int64) {
+	topic := "balances:" + strconv.FormatInt(userID, 10)
+	if !s.hub.HasSubscribers(topic) {
+		return
+	}
 	bals, err := s.st.ListBalances(userID)
 	if err != nil {
 		return
 	}
-	s.hub.Publish("balances:"+strconv.FormatInt(userID, 10), bals)
+	s.hub.Publish(topic, bals)
 }
 
 func (s *Service) publishPositions(userID int64) {

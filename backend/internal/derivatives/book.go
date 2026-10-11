@@ -31,9 +31,27 @@ type restingOrder struct {
 
 func (o *restingOrder) isMarket() bool { return o.typ == models.TypeMarket }
 
+// orderSnapshot captures the fill state settle() mutates before a commit.
+type orderSnapshot struct {
+	lockedMargin num.Dec
+	mo           models.PerpOrder
+}
+
+func (o *restingOrder) snapshot() orderSnapshot {
+	return orderSnapshot{lockedMargin: o.lockedMargin, mo: *o.mo}
+}
+
+func (o *restingOrder) restore(s orderSnapshot) {
+	o.lockedMargin = s.lockedMargin
+	*o.mo = s.mo
+}
+
+// priceLevel is a FIFO queue of orders at one price; total is the running sum
+// of their remaining quantity so depth snapshots are O(levels).
 type priceLevel struct {
 	price  num.Dec
 	orders *list.List // of *restingOrder
+	total  num.Dec
 }
 
 type side struct {
@@ -57,6 +75,7 @@ func (s *side) add(o *restingOrder) {
 	}
 	o.elem = lvl.orders.PushBack(o)
 	o.level = lvl
+	lvl.total = lvl.total.Add(o.remaining)
 }
 
 func (s *side) remove(o *restingOrder) {
@@ -64,6 +83,7 @@ func (s *side) remove(o *restingOrder) {
 		return
 	}
 	o.level.orders.Remove(o.elem)
+	o.level.total = o.level.total.Sub(o.remaining)
 	o.elem = nil
 	if o.level.orders.Len() == 0 {
 		key := o.level.price.Raw()
@@ -133,21 +153,13 @@ func (b *book) snapshot(market string, limit int) DepthSnapshot {
 	ds := DepthSnapshot{Market: market, Bids: []DepthLevel{}, Asks: []DepthLevel{}}
 	for i := len(b.bids.prices) - 1; i >= 0 && len(ds.Bids) < limit; i-- {
 		lvl := b.bids.levels[b.bids.prices[i]]
-		ds.Bids = append(ds.Bids, DepthLevel{Price: lvl.price, Qty: levelQty(lvl)})
+		ds.Bids = append(ds.Bids, DepthLevel{Price: lvl.price, Qty: lvl.total})
 	}
 	for i := 0; i < len(b.asks.prices) && len(ds.Asks) < limit; i++ {
 		lvl := b.asks.levels[b.asks.prices[i]]
-		ds.Asks = append(ds.Asks, DepthLevel{Price: lvl.price, Qty: levelQty(lvl)})
+		ds.Asks = append(ds.Asks, DepthLevel{Price: lvl.price, Qty: lvl.total})
 	}
 	return ds
-}
-
-func levelQty(lvl *priceLevel) num.Dec {
-	sum := num.Zero
-	for e := lvl.orders.Front(); e != nil; e = e.Next() {
-		sum = sum.Add(e.Value.(*restingOrder).remaining)
-	}
-	return sum
 }
 
 func (b *book) bestBid() num.Dec {
