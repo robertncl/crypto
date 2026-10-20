@@ -6,7 +6,6 @@ import {
 import { api } from "../api/client";
 import type { Candle, Market } from "../api/types";
 import { useChannel } from "../hooks/useStream";
-import { useTheme } from "../hooks/useTheme";
 import { fmt, stepDecimals, toNum } from "../utils/format";
 import { Tabs, tabPanelProps } from "./acme";
 import { Panel } from "./common";
@@ -23,10 +22,9 @@ type IntervalId = (typeof INTERVALS)[number]["id"];
 
 interface Ohlc { o: number; h: number; l: number; c: number }
 
-// Reads the live ACME tokens off the root element so the chart follows the
-// light/dark switch without a colour system of its own. Candles use the market
-// direction pair (Sky up, hollow; Brick down, filled) and the last-price line is
-// the system's data highlight.
+// Reads the ACME tokens off the root element so the chart has no colour system
+// of its own. Candles use the market direction pair (Blue up, hollow; Crimson
+// down, filled) and the last-price line is the system's data highlight.
 function chartColors() {
   const s = getComputedStyle(document.documentElement);
   const v = (name: string) => s.getPropertyValue(name).trim();
@@ -67,7 +65,6 @@ export function Chart({ market }: { market: Market }) {
   const hoverRef = useRef(false);
   const [interval, setInterval] = useState<IntervalId>("15m");
   const [ohlc, setOhlc] = useState<Ohlc | null>(null);
-  const [theme] = useTheme();
 
   const pd = stepDecimals(market.priceTick);
   const sec = INTERVALS.find((i) => i.id === interval)?.sec ?? 900;
@@ -132,22 +129,6 @@ export function Chart({ market }: { market: Market }) {
     chartRef.current?.applyOptions({ localization: { priceFormatter: (p: number) => fmt(p, pd) } });
     candleRef.current?.applyOptions({ priceFormat: { type: "price", precision: pd, minMove: toNum(market.priceTick) } });
   }, [pd, market.priceTick]);
-
-  // Follow the light/dark switch without recreating the chart/series.
-  useEffect(() => {
-    const c = chartColors();
-    chartRef.current?.applyOptions({
-      layout: { textColor: c.text },
-      grid: { vertLines: { color: c.grid }, horzLines: { color: c.grid } },
-      rightPriceScale: { borderColor: c.axis },
-      timeScale: { borderColor: c.axis },
-    });
-    candleRef.current?.applyOptions({
-      upColor: c.hollow, downColor: c.down, borderUpColor: c.up, borderDownColor: c.down,
-      wickUpColor: c.up, wickDownColor: c.down, priceLineColor: c.last,
-    });
-    volRef.current?.applyOptions({ color: c.volume });
-  }, [theme]);
 
   // Load historical candles when market or interval changes.
   useEffect(() => {

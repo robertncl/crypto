@@ -1,5 +1,5 @@
 // Status glyphs from the ACME system: 24px grid, round stroke, currentColor.
-// Success and warning share Oat ink, so these icons carry the meaning.
+// Success and warning share Stone ink, so these icons carry the meaning.
 const PATHS = {
   success: ["M20 6 9 17l-5-5"],
   warning: ["M12 3 2 20h20L12 3z", "M12 10v4", "M12 17h.01"],

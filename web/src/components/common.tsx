@@ -42,8 +42,8 @@ export function ArrowIcon({ up, size = 14 }: { up: boolean; size?: number }) {
 }
 
 /**
- * A value that moves with the market. Up/buy reads in Sky and down/sell in
- * Brick (ACME's info and danger hues; Clay stays reserved for actions and
+ * A value that moves with the market. Up/buy reads in Blue and down/sell in
+ * Crimson (ACME's info and danger hues; Signal Red stays reserved for actions and
  * orientation), always with an arrow so colour never carries it alone.
  */
 export function Direction({ up, children, className = "" }: { up: boolean; children: ReactNode; className?: string }) {

@@ -21,8 +21,7 @@ web/src/
     client.ts    typed REST wrapper (fetch + bearer token)
     ws.ts        reconnecting WebSocket client with topic subscriptions
   state/auth.tsx authentication context (token, user, login/logout)
-  hooks/         useStream (subscribe to a channel), useTicker, useBalances,
-                 useTheme
+  hooks/         useStream (subscribe to a channel), useTicker, useBalances
   components/    Chart, OrderBook, TradesFeed, OrderForm, PerpOrderForm,
                  PerpPanel, TickerBar, UserOrders, Layout …
     acme/        React ports of the ACME Design System (Button, Field, Tabs,
@@ -34,10 +33,9 @@ web/src/
 The look comes from the **ACME Design System**. Its stylesheets are copied
 unchanged into `styles/acme/` (re-synced, never hand-edited) and
 `index.css` layers the exchange's own layout on top using only its semantic
-tokens (`--acme-color-*`). Light and dark themes are a single `data-theme`
-attribute on `<html>`: `public/theme.js` sets it before first paint (a plain
-external script, since the CSP forbids inline ones) and `useTheme` keeps every
-consumer — the top-bar switch, the chart — in sync.
+tokens (`--acme-color-*`). The system (v4, Stone + Signal Red) is light-only,
+so there is no theme switch: the tokens sit on `:root` and the chart reads the
+same values once when it is created.
 
 The mental model: **REST loads the initial snapshot; WebSocket keeps it live.**
 Open the order book → fetch the current depth once over REST, then subscribe to
@@ -139,9 +137,9 @@ full width with the other two side by side underneath; below 760px everything
 stacks.
 
 Direction has its own colour rule. The design system has no green, so **up/buy
-reads in its info blue and down/sell in its danger red**, always paired with an
+reads in its info Blue and down/sell in its danger Crimson**, always paired with an
 arrow or a sign so colour never carries the meaning alone. Its accent colour
-(Clay) stays reserved for actions and "you are here" cues: the primary button,
+(Signal Red) stays reserved for actions and "you are here" cues: the primary button,
 the current tab, the selected leverage.
 
 Two performance touches worth calling out:

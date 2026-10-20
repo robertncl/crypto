@@ -41,16 +41,9 @@
   --acme-ease-out: cubic-bezier(0.2, 0.8, 0.4, 1);
   --acme-ease-in-out: cubic-bezier(0.45, 0, 0.25, 1);
 
-  /* Selection is orientation, not action — checked controls are Clay. */
+  /* Selection is orientation, not action — checked controls are Signal Red. */
   accent-color: var(--acme-color-selected);
 }
-/* Themes: tokens.css switches on data-theme="light" | "dark" on <html>.
-   To follow the OS, set it once at load:
-   document.documentElement.dataset.theme =
-     matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; */
-[data-theme="dark"] { color-scheme: dark; }
-[data-theme="light"] { color-scheme: light; }
-
 /* --------------------------------------------------------------------------
    2. Base
    -------------------------------------------------------------------------- */
@@ -129,10 +122,10 @@ code, pre {
   font-style: italic;
   letter-spacing: 0;
 }
-/* On a dark ground inside a light page (footers, dark slides): warm-white
-   letters, and the mark lifts to clay-500 so it clears 3:1 against Oat 900. */
+/* On a dark ground inside a light page (footers, dark slides): white
+   letters, and the mark lifts to red-500 so it clears 3:1 against Stone 900. */
 .acme-wordmark--on-dark { color: var(--acme-gray-0); }
-.acme-wordmark--on-dark .acme-wordmark__mark { background: var(--acme-clay-500); }
+.acme-wordmark--on-dark .acme-wordmark__mark { background: var(--acme-red-500); }
 
 /* --------------------------------------------------------------------------
    4. Buttons
@@ -381,7 +374,7 @@ textarea.acme-input { padding: var(--acme-space-2) var(--acme-space-3); min-heig
 .acme-table tbody tr:hover { background: var(--acme-color-surface); }
 .acme-table .acme-table__num { text-align: end; font-variant-numeric: tabular-nums; }
 
-/* Clay marks orientation: which column orders the data, which rows are held */
+/* Signal Red marks orientation: which column orders the data, which rows are held */
 .acme-table th:is([aria-sort="ascending"], [aria-sort="descending"]) {
   color: var(--acme-color-selected);
   border-block-end-color: var(--acme-color-selected);
@@ -395,7 +388,7 @@ textarea.acme-input { padding: var(--acme-space-2) var(--acme-space-3); min-heig
    10. Tabs
    -------------------------------------------------------------------------- */
 /* Underline tabs: a hairline baseline across the set; the selected tab
-   carries a 2 px Clay indicator that sits on the baseline. */
+   carries a 2 px Signal Red indicator that sits on the baseline. */
 .acme-tabs {
   display: flex;
   gap: var(--acme-space-2);
@@ -569,24 +562,24 @@ textarea.acme-input { padding: var(--acme-space-2) var(--acme-space-3); min-heig
 .acme-slide__footer .acme-wordmark { font-size: 1.4cqi; }
 .acme-slide__footer-num { margin-inline-start: auto; font-variant-numeric: tabular-nums; }
 
-/* Dark bookends (title & closing) keep the dark Oat ground regardless of
-   theme. This background never lightens with the page, so nothing on it may
-   key off a token that would — hence the pinned accent: the light-theme
-   clay-700 would sit at ~2.5:1 here, while clay-300 clears 8.8:1. */
+/* Dark bookends (title & closing) sit on a dark Stone ground inside the
+   light system. Nothing on it may key off a semantic token tuned for the
+   light canvas — hence the pinned accent: red-700 would sit at ~2.5:1 here,
+   while red-300 clears 8.3:1. */
 .acme-slide--dark {
   background: var(--acme-gray-950);
   color: var(--acme-gray-100);
 }
-.acme-slide--dark :is(.acme-slide__meta, .acme-slide__body) { color: var(--acme-gray-200); }
-.acme-slide--dark .acme-slide__footer { color: var(--acme-gray-300); }
+.acme-slide--dark :is(.acme-slide__meta, .acme-slide__body) { color: var(--acme-gray-300); }
+.acme-slide--dark .acme-slide__footer { color: var(--acme-gray-400); }
 .acme-slide--dark .acme-wordmark { color: var(--acme-gray-0); }
-.acme-slide--dark .acme-wordmark__mark { background: var(--acme-clay-500); }
-.acme-slide--dark .acme-slide__kicker { color: var(--acme-clay-300); }
-.acme-slide--dark .acme-slide__bullets li::marker { color: var(--acme-clay-300); }
-.acme-slide--dark .acme-slide__num { color: var(--acme-clay-300); }
+.acme-slide--dark .acme-wordmark__mark { background: var(--acme-red-500); }
+.acme-slide--dark .acme-slide__kicker { color: var(--acme-red-300); }
+.acme-slide--dark .acme-slide__bullets li::marker { color: var(--acme-red-300); }
+.acme-slide--dark .acme-slide__num { color: var(--acme-red-300); }
 
 /* Section divider — pairs with .acme-slide--dark in markup. The giant serif
-   numeral is the divider's signal; it takes the pinned Clay accent as the
+   numeral is the divider's signal; it takes the pinned Signal Red accent as the
    one warm editorial moment in the deck. */
 .acme-slide--section .acme-slide__num {
   font: 700 12cqi/1 var(--acme-font-display);
@@ -634,7 +627,7 @@ textarea.acme-input { padding: var(--acme-space-2) var(--acme-space-3); min-heig
 
 /* --------------------------------------------------------------------------
    14. Report document
-   Long-form editorial styles. Clay appears in exactly three places, all via
+   Long-form editorial styles. Signal Red appears in exactly three places, all via
    --acme-color-accent: the cover rule, heading numerals, and the key-finding
    callout accent. Accent is a mark, never an action — it is a separate token
    from --acme-color-primary for that reason.

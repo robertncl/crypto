@@ -2,8 +2,8 @@ import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 
 /**
- * The ACME wordmark: Clay mark with an italic "A" plus "ACME". Never recolor or
- * redraw it. `onDark` is for Oat 900/800 grounds inside a light page.
+ * The ACME wordmark: Signal Red mark with an italic "A" plus "ACME". Never recolor or
+ * redraw it. `onDark` is for Stone 900/800 grounds inside a light page.
  */
 export function Wordmark({ to = "/", onDark = false, style }: { to?: string; onDark?: boolean; style?: CSSProperties }) {
   return (

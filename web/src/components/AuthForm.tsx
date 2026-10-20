@@ -2,8 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ApiError } from "../api/client";
 import { useAuth } from "../state/auth";
-import { useTheme } from "../hooks/useTheme";
-import { Alert, Button, Field, Input, Switch, Wordmark } from "./acme";
+import { Alert, Button, Field, Input, Wordmark } from "./acme";
 
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
@@ -23,7 +22,6 @@ function Point({ icon, children }: { icon: "chart" | "clock" | "shield"; childre
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
   const { login, register } = useAuth();
   const navigate = useNavigate();
-  const [theme, setTheme] = useTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
@@ -75,9 +73,6 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
       </aside>
 
       <main className="auth__main">
-        <div className="auth__tools">
-          <Switch label="Dark mode" checked={theme === "dark"} onChange={(e) => setTheme(e.target.checked ? "dark" : "light")} />
-        </div>
         <form className="auth__form" onSubmit={submit} noValidate>
           <div>
             <h1>{isRegister ? "Create your account" : "Sign in"}</h1>

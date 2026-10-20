@@ -12,7 +12,7 @@ export function buttonClass(variant: ButtonVariant = "secondary", size?: ButtonS
 }
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  /** Primary is the Clay fill: one per view. Danger is for destructive, confirmed actions only. */
+  /** Primary is the Signal Red fill: one per view. Danger is for destructive, confirmed actions only. */
   variant?: ButtonVariant;
   /** sm = 32px (dense rows) · default 40px · lg = 48px */
   size?: ButtonSize;

@@ -3,7 +3,7 @@
 A self-contained cryptocurrency exchange and custody platform. It implements the realistic core of an exchange — a
 price-time-priority **matching engine** (spot **and** perpetual futures), a double-entry **custody ledger**,
 **simulated wallet custody** (deposits/withdrawals), real-time **market data**,
-and a polished dark **trading terminal** UI.
+and a polished **trading terminal** UI.
 
 > ⚠️ **Demo software.** Custody is *simulated* — no real blockchain, no real
 > funds. Do not point this at mainnet or use it to hold real value. It is built
@@ -57,7 +57,7 @@ phased migration roadmap.
 **Frontend**
 - React + TypeScript trading terminal: candlestick chart (TradingView lightweight-charts),
   live order book with depth bars, trade feed, order entry, open orders/history, wallet
-- Built on the ACME Design System (light and dark themes, self-hosted fonts)
+- Built on the ACME Design System v4 (Stone + Signal Red, light theme, self-hosted fonts)
 
 ---
 
@@ -90,7 +90,7 @@ web/
   src/
     api/              typed REST client, WS client, wire types
     state/            auth context
-    hooks/            stream, ticker, balances and theme hooks
+    hooks/            stream, ticker and balances hooks
     components/       Chart, OrderBook, TradesFeed, OrderForm, UserOrders, ...
       acme/           React ports of the ACME Design System components
     styles/acme/      vendored ACME tokens, component CSS and self-hosted fonts

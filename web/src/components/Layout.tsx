@@ -1,8 +1,7 @@
 import { Suspense } from "react";
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../state/auth";
-import { useTheme } from "../hooks/useTheme";
-import { Badge, Button, Switch, Wordmark, buttonClass } from "./acme";
+import { Badge, Button, Wordmark, buttonClass } from "./acme";
 
 const NAV = [
   { to: "/markets", label: "Markets" },
@@ -15,7 +14,6 @@ const NAV = [
 export function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [theme, setTheme] = useTheme();
 
   return (
     <div className="app">
@@ -23,14 +21,13 @@ export function Layout() {
       <header className="acme-topbar topbar">
         <Wordmark to="/markets" />
         {/* NavLink marks the current page with aria-current, which the ACME
-            top bar turns into its Clay-tinted chip. */}
+            top bar turns into its Signal Red-tinted chip. */}
         <nav className="acme-topbar__nav" aria-label="Primary">
           {NAV.map((n) => (
             <NavLink key={n.to} to={n.to} className="acme-topbar__link">{n.label}</NavLink>
           ))}
         </nav>
         <div className="topbar__account">
-          <Switch label="Dark mode" checked={theme === "dark"} onChange={(e) => setTheme(e.target.checked ? "dark" : "light")} />
           {user ? (
             <>
               {user.kycStatus !== "verified" && <Badge variant="warning">Unverified</Badge>}
