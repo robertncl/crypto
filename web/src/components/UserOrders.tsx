@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import type { Market, Order, Trade } from "../api/types";
 import { useAuth } from "../state/auth";
 import { useChannel } from "../hooks/useStream";
-import { fmt, timeAgo } from "../utils/format";
+import { fmt, stepDecimals, timeAgo } from "../utils/format";
+import { Button, Tabs, tabPanelProps } from "./acme";
+import { OrderStatusBadge, Panel, SrOnly } from "./common";
 
 type Tab = "open" | "history" | "trades";
 
@@ -53,61 +56,73 @@ export function UserOrders({ market }: { market: Market }) {
 
   if (!user) {
     return (
-      <section className="panel panel--orders">
-        <div className="empty pad">Log in to view your orders.</div>
-      </section>
+      <Panel id="orders" title="Your orders">
+        <p className="panel__empty"><Link to="/login">Sign in</Link> to see your orders.</p>
+      </Panel>
     );
   }
 
   return (
-    <section className="panel panel--orders">
-      <header className="panel__head">
-        <div className="seg">
-          <button className={`seg__btn ${tab === "open" ? "is-active" : ""}`} onClick={() => setTab("open")}>
-            Open Orders {open.length > 0 && <span className="pill">{open.length}</span>}
-          </button>
-          <button className={`seg__btn ${tab === "history" ? "is-active" : ""}`} onClick={() => setTab("history")}>Order History</button>
-          <button className={`seg__btn ${tab === "trades" ? "is-active" : ""}`} onClick={() => setTab("trades")}>Trade History</button>
-        </div>
-      </header>
-
-      <div className="scroll orders-scroll">
-        {tab === "open" && (
-          <OrdersTable orders={open} empty="No open orders" onCancel={cancel} />
-        )}
-        {tab === "history" && <OrdersTable orders={history} empty="No order history" />}
+    <Panel
+      id="orders"
+      title="Your orders"
+      tabbed
+      aside={
+        <Tabs
+          tabs={[
+            { id: "open", label: "Open", count: open.length },
+            { id: "history", label: "History" },
+            { id: "trades", label: "Trades" },
+          ]}
+          active={tab}
+          onChange={setTab}
+          idPrefix="orders"
+          label="Your orders"
+        />
+      }
+    >
+      <div className="table-scroll table-pad" {...tabPanelProps("orders", tab)}>
+        {tab === "open" && <OrdersTable orders={open} market={market} empty="No open orders. Limit orders you place show here until they fill." onCancel={cancel} />}
+        {tab === "history" && <OrdersTable orders={history} market={market} empty="No order history yet." />}
         {tab === "trades" && <TradesTable trades={trades} market={market} />}
       </div>
-    </section>
+    </Panel>
   );
 }
 
-function OrdersTable({ orders, empty, onCancel }: {
-  orders: Order[]; empty: string; onCancel?: (id: string) => void;
-}) {
-  if (orders.length === 0) return <div className="empty pad">{empty}</div>;
+function OrdersTable({ orders, market, empty, onCancel }: { orders: Order[]; market: Market; empty: string; onCancel?: (id: string) => void }) {
+  if (orders.length === 0) return <p className="panel__empty">{empty}</p>;
+  const pd = stepDecimals(market.priceTick);
+  const qd = stepDecimals(market.qtyStep);
   return (
-    <table className="dtable">
+    <table className="acme-table">
+      <caption className="visually-hidden">{onCancel ? "Open orders" : "Order history"}</caption>
       <thead>
         <tr>
           <th scope="col">Time</th><th scope="col">Side</th><th scope="col">Type</th>
-          <th scope="col" className="r">Price</th><th scope="col" className="r">Amount</th><th scope="col" className="r">Filled</th>
-          <th scope="col">Status</th>{onCancel && <th><span className="visually-hidden">Actions</span></th>}
+          <th scope="col" className="acme-table__num">Price</th>
+          <th scope="col" className="acme-table__num">Amount</th>
+          <th scope="col" className="acme-table__num">Filled ({market.base})</th>
+          <th scope="col">Status</th>
+          {onCancel && <th scope="col"><SrOnly>Actions</SrOnly></th>}
         </tr>
       </thead>
       <tbody>
         {orders.map((o) => (
           <tr key={o.id}>
             <td className="muted">{timeAgo(o.createdAt)}</td>
-            <td className={o.side === "buy" ? "up" : "down"}>{o.side}</td>
-            <td>{o.type}</td>
-            <td className="r">{o.type === "market" ? "—" : fmt(o.price, 2)}</td>
-            <td className="r">{fmt(o.quantity, 5)}</td>
-            <td className="r">{fmt(o.filled, 5)}</td>
-            <td><span className={`status status--${o.status}`}>{o.status}</span></td>
+            <td className={`strong ${o.side === "buy" ? "up" : "down"}`}>{o.side === "buy" ? "Buy" : "Sell"}</td>
+            <td>{o.type === "limit" ? "Limit" : "Market"}</td>
+            <td className="acme-table__num">{o.type === "market" ? "Market" : fmt(o.price, pd)}</td>
+            {/* A market buy is sized in the quote currency. */}
+            <td className="acme-table__num">
+              {o.type === "market" && o.side === "buy" ? `${fmt(o.quantity, 2)} ${market.quote}` : `${fmt(o.quantity, qd)} ${market.base}`}
+            </td>
+            <td className="acme-table__num">{fmt(o.filled, qd)}</td>
+            <td><OrderStatusBadge status={o.status} /></td>
             {onCancel && (
-              <td className="r">
-                <button className="btn btn--mini" onClick={() => onCancel(o.id)}>Cancel</button>
+              <td className="acme-table__num">
+                <Button variant="ghost" size="sm" onClick={() => onCancel(o.id)} aria-label={`Cancel ${o.side} order at ${fmt(o.price, pd)}`}>Cancel</Button>
               </td>
             )}
           </tr>
@@ -118,25 +133,30 @@ function OrdersTable({ orders, empty, onCancel }: {
 }
 
 function TradesTable({ trades, market }: { trades: Trade[]; market: Market }) {
-  if (trades.length === 0) return <div className="empty pad">No trades yet</div>;
+  if (trades.length === 0) return <p className="panel__empty">No trades yet.</p>;
+  const pd = stepDecimals(market.priceTick);
+  const qd = stepDecimals(market.qtyStep);
   return (
-    <table className="dtable">
+    <table className="acme-table">
+      <caption className="visually-hidden">Your trades</caption>
       <thead>
         <tr>
           <th scope="col">Time</th><th scope="col">Side</th>
-          <th scope="col" className="r">Price</th><th scope="col" className="r">Amount ({market.base})</th>
-          <th scope="col" className="r">Value ({market.quote})</th><th scope="col">Trade</th>
+          <th scope="col" className="acme-table__num">Price</th>
+          <th scope="col" className="acme-table__num">Amount ({market.base})</th>
+          <th scope="col" className="acme-table__num">Value ({market.quote})</th>
+          <th scope="col">Trade ID</th>
         </tr>
       </thead>
       <tbody>
         {trades.map((t) => (
           <tr key={t.id}>
             <td className="muted">{timeAgo(t.createdAt)}</td>
-            <td className={t.takerSide === "buy" ? "up" : "down"}>{t.takerSide}</td>
-            <td className="r">{fmt(t.price, 2)}</td>
-            <td className="r">{fmt(t.quantity, 5)}</td>
-            <td className="r">{fmt(t.quoteQty, 2)}</td>
-            <td className="muted">#{t.id}</td>
+            <td className={`strong ${t.takerSide === "buy" ? "up" : "down"}`}>{t.takerSide === "buy" ? "Buy" : "Sell"}</td>
+            <td className="acme-table__num">{fmt(t.price, pd)}</td>
+            <td className="acme-table__num">{fmt(t.quantity, qd)}</td>
+            <td className="acme-table__num">{fmt(t.quoteQty, 2)}</td>
+            <td className="mono muted">#{t.id}</td>
           </tr>
         ))}
       </tbody>

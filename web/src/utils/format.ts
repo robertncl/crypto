@@ -27,10 +27,15 @@ export function fmtCompact(value: string | number): string {
   return n.toLocaleString("en-US", { notation: "compact", maximumFractionDigits: 2 });
 }
 
-export function fmtPct(value: string | number): string {
+export function fmtPct(value: string | number, decimals = 2): string {
   const n = toNum(value);
-  const sign = n > 0 ? "+" : "";
-  return `${sign}${n.toFixed(2)}%`;
+  return `${n >= 0 ? "+" : "−"}${Math.abs(n).toFixed(decimals)}%`;
+}
+
+/** Always-signed amount with a true minus: "+93.43", "−1,204.00". */
+export function fmtSigned(value: string | number, decimals?: number): string {
+  const n = toNum(value);
+  return `${n >= 0 ? "+" : "−"}${fmt(Math.abs(n), decimals)}`;
 }
 
 export function fmtUsd(value: string | number, decimals = 2): string {
@@ -61,6 +66,22 @@ export function roundToStep(value: number, step: string): string {
 export function timeAgo(unixSeconds: number): string {
   const d = new Date(unixSeconds * 1000);
   return d.toLocaleTimeString("en-US", { hour12: false });
+}
+
+/** "Oct 17, 2026" — absolute dates where they matter (maturities, history). */
+export function fmtDate(unixSeconds: number): string {
+  return new Date(unixSeconds * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+/** "Nov 7" — a date close enough that the year goes without saying. */
+export function fmtShortDate(unixSeconds: number): string {
+  return new Date(unixSeconds * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+/** "Oct 17, 13:58" for transaction history. */
+export function fmtDateTime(unixSeconds: number): string {
+  const d = new Date(unixSeconds * 1000);
+  return `${fmtShortDate(unixSeconds)}, ${d.toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" })}`;
 }
 
 export function shortId(id: string): string {

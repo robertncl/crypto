@@ -1,0 +1,103 @@
+/* ACME Design System v4 (Stone + Signal Red, light only) — generated from tokens.json */
+:root, [data-theme="light"] {
+  color-scheme: light;
+  /* Signal Red (single accent) */
+  --acme-red-50:#FFF0EE; --acme-red-100:#FFDEDB; --acme-red-200:#FFBDB6; --acme-red-300:#FB8D82;
+  --acme-red-400:#F2594D; --acme-red-500:#E43227; --acme-red-600:#C91C15; --acme-red-700:#A91515;
+  --acme-red-800:#881415; --acme-red-900:#641212;
+  /* Stone (neutrals) */
+  --acme-gray-0:#FFFFFF; --acme-gray-50:#F9F7F6; --acme-gray-100:#F1EEEC; --acme-gray-200:#CBC4C0;
+  --acme-gray-300:#B4ACA7; --acme-gray-400:#847A76; --acme-gray-500:#685F5A; --acme-gray-600:#59504B;
+  --acme-gray-700:#453D38; --acme-gray-800:#312A26; --acme-gray-900:#1F1915; --acme-gray-950:#15100D;
+  /* Crimson (danger only) */
+  --acme-crimson-50:#FEEEF0; --acme-crimson-300:#EE8DA2; --acme-crimson-600:#AA2053;
+  --acme-crimson-700:#8E1846; --acme-crimson-800:#731438;
+  /* Blue (info only) */
+  --acme-blue-50:#EDF3FF; --acme-blue-300:#86ACFA; --acme-blue-500:#2F6BE4; --acme-blue-600:#1F57C9;
+  --acme-blue-700:#1A47A6; --acme-blue-800:#163A85;
+
+  /* Semantic */
+  --acme-color-canvas:var(--acme-gray-50);
+  --acme-color-surface:var(--acme-gray-100);
+  --acme-color-surface-raised:var(--acme-gray-0);
+  --acme-color-border:var(--acme-gray-200);
+  --acme-color-border-strong:var(--acme-gray-400);
+  --acme-color-text:var(--acme-gray-900);
+  --acme-color-text-muted:var(--acme-gray-600);
+  --acme-color-text-subtle:var(--acme-gray-500);
+  --acme-color-primary:var(--acme-red-600);
+  --acme-color-primary-hover:var(--acme-red-700);
+  --acme-color-primary-active:var(--acme-red-800);
+  --acme-color-on-primary:var(--acme-gray-0);
+  --acme-color-mark:var(--acme-red-600);
+  --acme-color-accent:var(--acme-red-700);
+  --acme-color-accent-soft:var(--acme-red-50);
+  --acme-color-selected:var(--acme-red-700);
+  --acme-color-selected-soft:var(--acme-red-50);
+  --acme-color-link:var(--acme-red-700);
+  --acme-color-link-hover:var(--acme-red-800);
+  --acme-color-focus:var(--acme-red-600);
+  --acme-color-success:var(--acme-gray-600);
+  --acme-color-success-soft:var(--acme-gray-100);
+  --acme-color-success-soft-text:var(--acme-gray-800);
+  --acme-color-warning:var(--acme-gray-600);
+  --acme-color-warning-soft:var(--acme-gray-100);
+  --acme-color-warning-soft-text:var(--acme-gray-800);
+  --acme-color-danger:var(--acme-crimson-700);
+  --acme-color-danger-emphasis:var(--acme-crimson-700);
+  --acme-color-danger-emphasis-hover:var(--acme-crimson-800);
+  --acme-color-danger-emphasis-active:var(--acme-crimson-800);
+  --acme-color-danger-soft:var(--acme-crimson-50);
+  --acme-color-danger-soft-text:var(--acme-crimson-700);
+  --acme-color-info:var(--acme-blue-700);
+  --acme-color-info-soft:var(--acme-blue-50);
+  --acme-color-info-soft-text:var(--acme-blue-800);
+  --acme-color-data:var(--acme-gray-400);
+  --acme-color-data-highlight:var(--acme-red-600);
+  --acme-color-scrim:#15100D80;
+  --acme-shadow-sm:0 1px 2px #1F19150F;
+  --acme-shadow-md:0 2px 8px -2px #1F19151A;
+  --acme-shadow-lg:0 8px 24px -6px #1F191524;
+}
+:root {
+  --acme-space-1: 0.25rem;
+  --acme-space-2: 0.5rem;
+  --acme-space-3: 0.75rem;
+  --acme-space-4: 1rem;
+  --acme-space-5: 1.25rem;
+  --acme-space-6: 1.5rem;
+  --acme-space-8: 2rem;
+  --acme-space-10: 2.5rem;
+  --acme-space-12: 3rem;
+  --acme-space-16: 4rem;
+  --acme-space-20: 5rem;
+  --acme-space-24: 6rem;
+  --acme-radius-sm: 4px;
+  --acme-radius-md: 8px;
+  --acme-radius-lg: 12px;
+  --acme-radius-xl: 16px;
+  --acme-radius-full: 999px;
+  --font-sans: "Styrene B", "Inter", "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Tiempos Headline", "Copernicus", "Source Serif 4", Georgia, "Times New Roman", ui-serif, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+.display { font-family: var(--font-display); font-size: 3rem; line-height: 1.1; font-weight: 700; letter-spacing: -0.015em; }
+.heading-1 { font-family: var(--font-display); font-size: 2.25rem; line-height: 1.2; font-weight: 700; letter-spacing: -0.015em; }
+.heading-2 { font-family: var(--font-display); font-size: 1.875rem; line-height: 1.2; font-weight: 700; letter-spacing: -0.01em; }
+.heading-3 { font-family: var(--font-display); font-size: 1.25rem; line-height: 1.2; font-weight: 700; }
+.heading-4 { font-family: var(--font-display); font-size: 1.125rem; line-height: 1.2; font-weight: 700; }
+.body { font-family: var(--font-sans); font-size: 1rem; line-height: 1.5; font-weight: 400; }
+.ui { font-family: var(--font-sans); font-size: 0.875rem; line-height: 1.5; font-weight: 400; }
+.ui-strong { font-family: var(--font-sans); font-size: 0.875rem; line-height: 1; font-weight: 600; }
+.caption { font-family: var(--font-sans); font-size: 0.75rem; line-height: 1.5; font-weight: 400; }
+.label-caps { font-family: var(--font-sans); font-size: 0.75rem; line-height: 1.5; font-weight: 600; letter-spacing: 0.05em; }
+.code { font-family: var(--font-mono); font-size: 0.875rem; line-height: 1.5; font-weight: 400; }
+@font-face { font-family: "Inter"; src: url("fonts/Inter-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Inter"; src: url("fonts/Inter-Medium.woff2") format("woff2"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: "Inter"; src: url("fonts/Inter-SemiBold.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "Inter"; src: url("fonts/Inter-Bold.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Inter"; src: url("fonts/Inter-BoldItalic.woff2") format("woff2"); font-weight: 700; font-style: italic; font-display: swap; }
+@font-face { font-family: "Source Serif 4"; src: url("fonts/SourceSerif4-Bold.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Source Serif 4"; src: url("fonts/SourceSerif4-BoldItalic.woff2") format("woff2"); font-weight: 700; font-style: italic; font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; src: url("fonts/JetBrainsMono-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; src: url("fonts/JetBrainsMono-SemiBold.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }

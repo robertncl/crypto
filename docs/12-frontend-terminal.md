@@ -21,11 +21,21 @@ web/src/
     client.ts    typed REST wrapper (fetch + bearer token)
     ws.ts        reconnecting WebSocket client with topic subscriptions
   state/auth.tsx authentication context (token, user, login/logout)
-  hooks/         useStream (subscribe to a channel), useBalances
+  hooks/         useStream (subscribe to a channel), useTicker, useBalances
   components/    Chart, OrderBook, TradesFeed, OrderForm, PerpOrderForm,
                  PerpPanel, TickerBar, UserOrders, Layout …
-  pages/         Trade (spot), Futures, Markets, Wallet, Login, Register
+    acme/        React ports of the ACME Design System (Button, Field, Tabs,
+                 Badge, Alert, Modal, Wordmark …)
+  styles/acme/   the design system's tokens, component CSS and fonts, vendored
+  pages/         Markets, Trade (spot), Futures, Earn, Wallet, Login, Register
 ```
+
+The look comes from the **ACME Design System**. Its stylesheets are copied
+unchanged into `styles/acme/` (re-synced, never hand-edited) and
+`index.css` layers the exchange's own layout on top using only its semantic
+tokens (`--acme-color-*`). The system (v4, Stone + Signal Red) is light-only,
+so there is no theme switch: the tokens sit on `:root` and the chart reads the
+same values once when it is created.
 
 The mental model: **REST loads the initial snapshot; WebSocket keeps it live.**
 Open the order book → fetch the current depth once over REST, then subscribe to
@@ -100,29 +110,43 @@ prices are updating many times a second.
 ## 12.5 The terminal layout
 
 A trading screen packs a chart, order book, trade tape, order form, and your
-orders/positions into one view. That's a job for **CSS Grid** with named areas
-(`web/src/index.css`):
+orders/positions into one view. A full-width **ticker band** (the market's name,
+last price and 24h stats) sits on top; below it, a **CSS Grid** of three stacked
+columns (`web/src/index.css`):
 
 ```css
 .terminal {
   display: grid;
-  grid-template-columns: minmax(0,1fr) 320px 340px;
-  grid-template-areas:
-    "ticker ticker ticker"
-    "chart  book   form"
-    "orders trades form";
+  grid-template-columns: minmax(0, 1fr) 300px 320px;
 }
+.terminal__col { display: flex; flex-direction: column; }
 ```
 
-You can *read the screen layout in the CSS* — the chart and your orders on the
-left, the book and tape in the middle, the order form spanning the right. The grid
-collapses to a single column on narrow screens via media queries.
+```tsx
+<div className="terminal">
+  <div className="terminal__col terminal__col--main"><Chart /><UserOrders /></div>
+  <div className="terminal__col"><OrderBook /><TradesFeed /></div>
+  <div className="terminal__col"><OrderForm /></div>
+</div>
+```
+
+The chart and your orders on the left, the book and tape in the middle, the
+order ticket on the right. Stacking each column independently means a tall
+book never pushes a gap under the chart. Below 1180px the main column spans the
+full width with the other two side by side underneath; below 760px everything
+stacks.
+
+Direction has its own colour rule. The design system has no green, so **up/buy
+reads in its info Blue and down/sell in its danger Crimson**, always paired with an
+arrow or a sign so colour never carries the meaning alone. Its accent colour
+(Signal Red) stays reserved for actions and "you are here" cues: the primary button,
+the current tab, the selected leverage.
 
 Two performance touches worth calling out:
 
-- The high-frequency panels (order book, trade tape) get `contain: layout style
-  paint`, which **isolates their re-rendering** so a flickering book doesn't force
-  the whole page to re-layout.
+- The high-frequency panels (order book, trade tape) get `contain: layout
+  style` and **fixed row heights**, so a flickering book never shifts the rest
+  of the page.
 - The chart uses **lightweight-charts** (the open-source library behind many
   exchange charts), fed historical candles over REST and live updates over the
   `kline:` channel.
@@ -134,23 +158,27 @@ Two performance touches worth calling out:
 `pages/Trade.tsx` is just an assembly of live components sharing one market:
 
 ```tsx
-<TickerBar market={market} />          {/* ticker: channel */}
-<Chart market={market} />              {/* candles + kline: channel */}
-<OrderBook market={market} onPickPrice={setPrice} />   {/* depth: channel */}
-<TradesFeed market={market} />         {/* trades: channel */}
-<OrderForm market={market} pickedPrice={price} />      {/* POST /orders */}
-<UserOrders market={market} />         {/* private orders: + balances: */}
+const ticker = useTicker(market.symbol);              // ticker: channel
+<TickerBar market={market} ticker={ticker} />
+<Chart market={market} />                             {/* candles + kline: channel */}
+<OrderBook market={market} last={ticker?.last} onPickPrice={setPrice} />  {/* depth: channel */}
+<TradesFeed market={market} />                        {/* trades: channel */}
+<OrderForm market={market} pickedPrice={price} />     {/* POST /orders */}
+<UserOrders market={market} />                        {/* private orders: + balances: */}
 ```
 
 Each component owns its own data: it fetches its snapshot and subscribes to its
-channel. Click a price in the order book and `onPickPrice` drops it into the order
-form — small touches that make a terminal feel professional.
+channel. The ticker is the exception — the band, the book's midpoint and the
+order form's starting price all need it, so the page holds it once via
+`useTicker`. Click a price in the order book and `onPickPrice` drops it into the
+order form — small touches that make a terminal feel professional.
 
 `pages/Futures.tsx` reuses the *same* chart, book, and tape components (a perp's
 market data is identical in shape to spot's) and swaps in a **leverage-aware order
-form**, a **positions panel** (live PnL, liquidation price, one-click close), and a
-**funding bar** (mark, index, rate, countdown) — the UI expression of Chapters
-9–10.
+form** (with an estimated liquidation price), a **positions panel** (live PnL,
+liquidation price, and a close that asks for confirmation first), and **funding
+stats** in the ticker band (mark, index, rate, countdown) — the UI expression
+of Chapters 9–10.
 
 ---
 
@@ -171,8 +199,9 @@ flowing. Log out and it clears all three. It's the client mirror of Chapter 4.
   only for display/chart use.
 - A typed **REST client** and a reconnecting **WS client + `useChannel` hook** give
   the whole UI a clean, live data layer.
-- The terminal is **CSS Grid named areas**; hot panels use CSS **containment**;
-  the chart uses lightweight-charts.
+- The terminal is a **CSS Grid of three stacked columns** styled with the ACME
+  Design System; hot panels use CSS **containment** and fixed row heights; the
+  chart uses lightweight-charts.
 - **Futures reuses spot's market-data components**, adding leverage, positions, and
   funding UI.
 
