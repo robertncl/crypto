@@ -1,15 +1,23 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../api/client";
-import type { OrderType, PerpMarket, Side } from "../api/types";
+import type { OrderType, PerpMarket, PerpOrder, Side } from "../api/types";
 import { useAuth } from "../state/auth";
 import { useBalances } from "../hooks/useBalances";
 import { fmt, roundToStep, stepDecimals, toNum, trimDecimal } from "../utils/format";
+import { Alert, Button, Field, Input, Tabs, buttonClass, tabPanelProps } from "./acme";
+import { Panel, SideSwitch } from "./common";
 
 const PERCENTS = [25, 50, 75, 100];
 
 function leverageChoices(max: number): number[] {
   return [1, 2, 3, 5, 10, 20, 25, 50, 75, 100].filter((l) => l <= max);
+}
+
+function placedText(o: PerpOrder, base: string, qd: number): string {
+  if (o.status === "filled") return `${fmt(o.filled, qd)} ${base} filled at ${fmt(o.avgPrice)}.`;
+  if (toNum(o.filled) > 0) return `${fmt(o.filled, qd)} ${base} filled so far; the rest is on the book.`;
+  return "It’s on the book and opens the position when it fills.";
 }
 
 export function PerpOrderForm({ market, pickedPrice, lastPrice }: { market: PerpMarket; pickedPrice: string; lastPrice: string }) {
@@ -20,119 +28,142 @@ export function PerpOrderForm({ market, pickedPrice, lastPrice }: { market: Perp
   const [leverage, setLeverage] = useState(10);
   const [price, setPrice] = useState("");
   const [qty, setQty] = useState("");
-  const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [errors, setErrors] = useState<{ price?: string; qty?: string }>({});
+  const [result, setResult] = useState<{ ok: boolean; title: string; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { if (pickedPrice) setPrice(trimDecimal(pickedPrice)); }, [pickedPrice]);
+  useEffect(() => { if (pickedPrice) { setPrice(trimDecimal(pickedPrice)); setType("limit"); } }, [pickedPrice]);
   useEffect(() => {
     if (type === "limit" && !price && toNum(lastPrice) > 0) setPrice(trimDecimal(lastPrice));
   }, [lastPrice, type, price]);
 
-  const qtyDp = stepDecimals(market.qtyStep);
+  const pd = stepDecimals(market.priceTick);
+  const qd = stepDecimals(market.qtyStep);
+  const isLong = side === "buy";
   const avail = toNum(get(market.settle).available);
   const effPrice = type === "market" ? toNum(lastPrice) : toNum(price);
-  const notional = effPrice * toNum(qty);
-  const cost = leverage > 0 ? notional / leverage : 0; // initial margin
+  const q = toNum(qty);
+  const notional = effPrice * q;
+  const margin = leverage > 0 ? notional / leverage : 0; // initial margin
   const feeRate = toNum(market.takerFee);
+  const mmr = toNum(market.mmr);
+  // Isolated-margin estimate before fees; the server computes the real one.
+  const liq = isLong ? effPrice * (1 - 1 / leverage + mmr) : effPrice * (1 + 1 / leverage - mmr);
 
   function applyPercent(pct: number) {
     if (effPrice <= 0) return;
-    const maxNotional = avail * leverage * (pct / 100);
+    setErrors({});
+    const maxNotional = avail * leverage * (pct / 100) / (1 + feeRate * leverage);
     setQty(roundToStep(maxNotional / effPrice, market.qtyStep));
   }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    setMsg(null);
-    if (!user) return;
-    if (toNum(qty) <= 0) { setMsg({ kind: "err", text: "Enter a quantity" }); return; }
-    if (type === "limit" && toNum(price) <= 0) { setMsg({ kind: "err", text: "Enter a price" }); return; }
+    setResult(null);
+    const next: typeof errors = {};
+    if (type === "limit" && toNum(price) <= 0) next.price = `Enter a limit price in ${market.settle}.`;
+    if (q <= 0) next.qty = `Enter a quantity in ${market.base}.`;
+    else if (notional > 0 && notional < toNum(market.minNotional)) next.qty = `Order value is under the ${trimDecimal(market.minNotional)} ${market.settle} minimum. Increase the quantity.`;
+    else if (margin > avail) next.qty = `Not enough margin: this needs ${fmt(margin, 2)} ${market.settle}. Lower the quantity or raise leverage.`;
+    setErrors(next);
+    if (next.price || next.qty) return;
+
     setBusy(true);
     try {
-      const body = {
+      const o = await api.placePerpOrder({
         market: market.symbol, side, type, leverage,
-        quantity: roundToStep(toNum(qty), market.qtyStep),
+        quantity: roundToStep(q, market.qtyStep),
         ...(type === "limit" ? { price: roundToStep(toNum(price), market.priceTick) } : {}),
-      };
-      const o = await api.placePerpOrder(body);
-      setMsg({ kind: "ok", text: `${side === "buy" ? "Long" : "Short"} ${o.status} · ${fmt(o.filled, qtyDp)} ${market.base} filled` });
+      });
+      setResult({ ok: true, title: `${isLong ? "Long" : "Short"} order placed`, text: placedText(o, market.base, qd) });
       setQty("");
     } catch (err) {
-      setMsg({ kind: "err", text: err instanceof ApiError ? err.message : "Order failed" });
+      setResult({ ok: false, title: "Order not placed", text: err instanceof ApiError ? err.message : "The exchange didn’t respond. Check your connection and try again." });
     } finally {
       setBusy(false);
     }
   }
 
+  const submitLabel = busy
+    ? "Placing…"
+    : `${isLong ? "Long" : "Short"} ${q > 0 ? `${fmt(q, qd)} ` : ""}${market.base} at ${leverage}×`;
+
   return (
-    <section className="panel panel--form">
-      <div className="sidetabs">
-        <button className={`sidetab sidetab--buy ${side === "buy" ? "is-active" : ""}`} onClick={() => setSide("buy")}>Long</button>
-        <button className={`sidetab sidetab--sell ${side === "sell" ? "is-active" : ""}`} onClick={() => setSide("sell")}>Short</button>
-      </div>
-
-      <div className="lev">
-        <div className="lev__head">
-          <span className="field__label">Leverage</span>
-          <span className="lev__val">{leverage}×</span>
+    <Panel id="ticket" title="Open a position" className="panel--ticket">
+      {!user ? (
+        <div className="ticket__empty form">
+          <p>Sign in to trade perpetuals. New accounts start with 10,000 USDT.</p>
+          <Link className={buttonClass("primary", "lg", "btn-block")} to="/login">Sign in to trade</Link>
+          <p className="form__note">New here? <Link to="/register">Create an account</Link></p>
         </div>
-        <div className="lev__opts">
-          {leverageChoices(market.maxLeverage).map((l) => (
-            <button key={l} className={`lev__btn ${l === leverage ? "is-active" : ""}`} onClick={() => setLeverage(l)}>{l}×</button>
-          ))}
-        </div>
-      </div>
-
-      <div className="seg seg--type">
-        {(["limit", "market"] as OrderType[]).map((t) => (
-          <button key={t} className={`seg__btn ${t === type ? "is-active" : ""}`} onClick={() => setType(t)}>
-            {t === "limit" ? "Limit" : "Market"}
-          </button>
-        ))}
-      </div>
-
-      <form className="form" onSubmit={submit}>
-        <div className="form__avail muted">Available <strong>{fmt(avail, 2)}</strong> {market.settle}</div>
-
-        {type === "limit" && (
-          <label className="field">
-            <span className="field__label">Price</span>
-            <span className="field__input">
-              <input inputMode="decimal" placeholder="0.00" value={price} onChange={(e) => setPrice(e.target.value)} />
-              <span className="field__suffix">{market.settle}</span>
-            </span>
-          </label>
-        )}
-
-        <label className="field">
-          <span className="field__label">Quantity</span>
-          <span className="field__input">
-            <input inputMode="decimal" placeholder="0.00" value={qty} onChange={(e) => setQty(e.target.value)} />
-            <span className="field__suffix">{market.base}</span>
-          </span>
-        </label>
-
-        <div className="pcts">
-          {PERCENTS.map((p) => (
-            <button type="button" key={p} className="pct" onClick={() => applyPercent(p)}>{p}%</button>
-          ))}
-        </div>
-
-        <div className="form__row muted"><span>Order Value</span><span>{fmt(notional, 2)} {market.settle}</span></div>
-        <div className="form__row muted"><span>Margin Required</span><span>{fmt(cost, 2)} {market.settle}</span></div>
-        <div className="form__row muted"><span>Est. Fee</span><span>{fmt(notional * feeRate, 4)} {market.settle}</span></div>
-
-        {user ? (
-          <button className={`btn btn--block ${side === "buy" ? "btn--buy" : "btn--sell"}`} disabled={busy}>
-            {busy ? "Placing…" : `${side === "buy" ? "Long" : "Short"} ${market.base} ${leverage}×`}
-          </button>
-        ) : (
-          <Link to="/login" className="btn btn--block btn--primary">Log in to trade</Link>
-        )}
-
-        {msg && <div className={`formmsg ${msg.kind === "ok" ? "formmsg--ok" : "formmsg--err"}`} role={msg.kind === "ok" ? "status" : "alert"}>{msg.text}</div>}
-        <div className="form__hint muted">Isolated margin · Max {market.maxLeverage}× · MMR {fmt(toNum(market.mmr) * 100, 2)}%</div>
-      </form>
-    </section>
+      ) : (
+        <form className="form" onSubmit={submit} noValidate>
+          <SideSwitch
+            label="Direction"
+            value={side}
+            onChange={(s) => { setSide(s); setErrors({}); setResult(null); }}
+            options={[{ id: "buy", label: "Long", up: true }, { id: "sell", label: "Short", up: false }]}
+          />
+          <fieldset className="fieldset">
+            <legend><span>Leverage</span><span className="fieldset__value">{leverage}×</span></legend>
+            <div className="chips">
+              {leverageChoices(market.maxLeverage).map((l) => (
+                <button key={l} type="button" className="chip" aria-pressed={l === leverage} onClick={() => { setLeverage(l); setErrors({}); }}>
+                  {l}×
+                </button>
+              ))}
+            </div>
+          </fieldset>
+          <Tabs
+            tabs={[{ id: "limit", label: "Limit" }, { id: "market", label: "Market" }]}
+            active={type}
+            onChange={(t) => { setType(t); setErrors({}); }}
+            idPrefix="otype"
+            label="Order type"
+          />
+          <div className="form" {...tabPanelProps("otype", type)}>
+            <div className="form__row">
+              <span>Available margin</span>
+              <strong>{fmt(avail, 2)} {market.settle}</strong>
+            </div>
+            <Field
+              label={`Price (${market.settle})`}
+              error={errors.price}
+              help={type === "market" ? "Fills now at the best price in the book." : undefined}
+            >
+              <Input
+                inputMode="decimal" autoComplete="off"
+                placeholder={type === "market" ? "Best available price" : "0.0"}
+                value={type === "market" ? "" : price}
+                disabled={type === "market"}
+                onChange={(e) => { setPrice(e.target.value); setErrors((x) => ({ ...x, price: undefined })); }}
+              />
+            </Field>
+            <Field label={`Quantity (${market.base})`} error={errors.qty}>
+              <Input
+                inputMode="decimal" autoComplete="off" placeholder="0.000" value={qty}
+                onChange={(e) => { setQty(e.target.value); setErrors((x) => ({ ...x, qty: undefined })); }}
+              />
+            </Field>
+            <div className="pcts">
+              {PERCENTS.map((p) => (
+                <Button key={p} size="sm" onClick={() => applyPercent(p)} aria-label={`Use ${p}% of available margin`}>
+                  {p === 100 ? "Max" : `${p}%`}
+                </Button>
+              ))}
+            </div>
+            <dl className="summary">
+              <div><dt>Order value</dt><dd>{q > 0 && effPrice > 0 ? `${fmt(notional, 2)} ${market.settle}` : "—"}</dd></div>
+              <div><dt>Margin required</dt><dd>{q > 0 && effPrice > 0 ? `${fmt(margin, 2)} ${market.settle}` : "—"}</dd></div>
+              <div><dt>Est. liquidation price</dt><dd className="down">{q > 0 && effPrice > 0 ? fmt(liq, pd) : "—"}</dd></div>
+              <div><dt>Est. fee ({fmt(feeRate * 100, 2)}%)</dt><dd>{q > 0 && effPrice > 0 ? `${fmt(notional * feeRate, 4)} ${market.settle}` : "—"}</dd></div>
+            </dl>
+            <Button variant="primary" size="lg" type="submit" className="btn-block" disabled={busy}>{submitLabel}</Button>
+            {result && <Alert variant={result.ok ? "success" : "danger"} title={result.title}>{result.text}</Alert>}
+            <p className="form__note">Isolated margin · Max {market.maxLeverage}× · Maintenance margin {fmt(mmr * 100, 2)}%</p>
+          </div>
+        </form>
+      )}
+    </Panel>
   );
 }

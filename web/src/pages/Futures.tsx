@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { api } from "../api/client";
-import type { FundingInfo, Market, PerpMarket, Ticker } from "../api/types";
+import type { FundingInfo, Market, PerpMarket } from "../api/types";
 import { useChannel } from "../hooks/useStream";
-import { TickerBar } from "../components/TickerBar";
+import { useTicker } from "../hooks/useTicker";
+import { TickerBar, Stat } from "../components/TickerBar";
 import { Chart } from "../components/Chart";
 import { OrderBook } from "../components/OrderBook";
 import { TradesFeed } from "../components/TradesFeed";
 import { PerpOrderForm } from "../components/PerpOrderForm";
 import { PerpPanel } from "../components/PerpPanel";
-import { fmt, toNum } from "../utils/format";
+import { Badge } from "../components/acme";
+import { fmt, fmtPct, stepDecimals, toNum } from "../utils/format";
 
 // Adapt a PerpMarket to the Market shape the shared chart/book/ticker components
 // expect (settle currency stands in for the quote).
@@ -25,7 +27,6 @@ export function Futures() {
   const { symbol = "BTC-PERP" } = useParams();
   const [pm, setPm] = useState<PerpMarket | null>(null);
   const [notFound, setNotFound] = useState(false);
-  const [lastPrice, setLastPrice] = useState("0");
   const [pickedPrice, setPickedPrice] = useState("");
 
   useEffect(() => {
@@ -33,30 +34,44 @@ export function Futures() {
     api.perpMarket(symbol).then(setPm).catch(() => setNotFound(true));
   }, [symbol]);
 
-  useChannel<Ticker>(pm ? `ticker:${pm.symbol}` : null, (t) => setLastPrice(t.last));
+  const ticker = useTicker(pm?.symbol ?? null);
 
   const market = useMemo(() => (pm ? asMarket(pm) : null), [pm]);
 
-  if (notFound) return <div className="page"><div className="empty pad">Perp market “{symbol}” not found.</div></div>;
-  if (!pm || !market) return <div className="page"><div className="empty pad">Loading market…</div></div>;
+  if (notFound) return <p className="loading">Perpetual market “{symbol}” not found. <Link to="/markets">See all markets</Link></p>;
+  if (!pm || !market) return <p className="loading">Loading market…</p>;
+
+  const last = ticker?.last ?? "0";
 
   return (
-    <div className="terminal">
-      <h1 className="visually-hidden">{pm.symbol} perpetual futures</h1>
-      <div className="terminal__ticker perp-ticker">
-        <TickerBar market={market} />
-        <FundingBar symbol={pm.symbol} />
+    <>
+      <TickerBar
+        market={market}
+        ticker={ticker}
+        title={pm.symbol}
+        subtitle={`Perpetual · ${pm.settle}-margined · isolated`}
+        badge={<Badge variant="warning">Up to {pm.maxLeverage}×</Badge>}
+      >
+        <FundingStats symbol={pm.symbol} pd={stepDecimals(pm.priceTick)} />
+      </TickerBar>
+      <div className="terminal">
+        <div className="terminal__col terminal__col--main">
+          <Chart market={market} />
+          <PerpPanel market={pm} />
+        </div>
+        <div className="terminal__col">
+          <OrderBook market={market} last={last} lastUp={toNum(ticker?.change) >= 0} fetchDepth={api.perpDepth} onPickPrice={setPickedPrice} />
+          <TradesFeed market={market} />
+        </div>
+        <div className="terminal__col">
+          <PerpOrderForm market={pm} pickedPrice={pickedPrice} lastPrice={last} />
+        </div>
       </div>
-      <div className="terminal__chart"><Chart market={market} /></div>
-      <div className="terminal__book"><OrderBook market={market} fetchDepth={api.perpDepth} onPickPrice={setPickedPrice} /></div>
-      <div className="terminal__trades"><TradesFeed market={market} /></div>
-      <div className="terminal__form"><PerpOrderForm market={pm} pickedPrice={pickedPrice} lastPrice={lastPrice} /></div>
-      <div className="terminal__orders"><PerpPanel market={pm} /></div>
-    </div>
+    </>
   );
 }
 
-function FundingBar({ symbol }: { symbol: string }) {
+function FundingStats({ symbol, pd }: { symbol: string; pd: number }) {
   const [fi, setFi] = useState<FundingInfo | null>(null);
   const [now, setNow] = useState(() => Date.now());
 
@@ -68,24 +83,19 @@ function FundingBar({ symbol }: { symbol: string }) {
 
   useChannel<FundingInfo>(`funding:${symbol}`, setFi);
 
-  const ratePct = toNum(fi?.rate) * 100;
-  const rateUp = ratePct >= 0;
+  const rate = toNum(fi?.rate) * 100;
   const secsLeft = fi?.nextFundingTime ? Math.max(0, fi.nextFundingTime - Math.floor(now / 1000)) : 0;
   const mm = String(Math.floor(secsLeft / 60)).padStart(2, "0");
   const ss = String(secsLeft % 60).padStart(2, "0");
 
   return (
-    <div className="fundingbar">
-      <span className="badge badge--warn">PERP</span>
-      <div className="stat"><div className="stat__label">Mark</div><div className="stat__value mono">{fmt(fi?.markPrice ?? "0", 2)}</div></div>
-      <div className="stat"><div className="stat__label">Index</div><div className="stat__value mono">{fmt(fi?.indexPrice ?? "0", 2)}</div></div>
-      <div className="stat">
-        <div className="stat__label">Funding / Countdown</div>
-        <div className="stat__value mono">
-          <span className={rateUp ? "up" : "down"}>{rateUp ? "+" : ""}{ratePct.toFixed(4)}%</span>
-          {fi?.nextFundingTime ? <span className="muted"> · {mm}:{ss}</span> : null}
-        </div>
-      </div>
-    </div>
+    <>
+      <Stat label="Mark price">{fi ? fmt(fi.markPrice, pd) : "—"}</Stat>
+      <Stat label="Index price">{fi ? fmt(fi.indexPrice, pd) : "—"}</Stat>
+      <Stat label="Funding rate · next in">
+        <span className={rate >= 0 ? "up" : "down"}>{fi ? fmtPct(rate, 4) : "—"}</span>
+        {fi?.nextFundingTime ? <span className="muted"> · {mm}:{ss}</span> : null}
+      </Stat>
+    </>
   );
 }

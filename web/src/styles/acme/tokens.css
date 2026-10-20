@@ -1,0 +1,164 @@
+/* ACME Design System — generated from tokens.json */
+:root, [data-theme="light"] {
+  --acme-clay-50: #faf0eb;
+  --acme-clay-100: #f3ddd0;
+  --acme-clay-200: #e9c3af;
+  --acme-clay-300: #dda588;
+  --acme-clay-400: #d18b6a;
+  --acme-clay-500: #b26e52;
+  --acme-clay-600: #94513b;
+  --acme-clay-700: #80432f;
+  --acme-clay-800: #6b3624;
+  --acme-clay-900: #552818;
+  --acme-gray-0: #fcfbf7;
+  --acme-gray-50: #f3f0e7;
+  --acme-gray-100: #e9e4d5;
+  --acme-gray-200: #c4bda4;
+  --acme-gray-300: #a29b89;
+  --acme-gray-400: #7e7764;
+  --acme-gray-500: #696352;
+  --acme-gray-600: #554f41;
+  --acme-gray-700: #433f32;
+  --acme-gray-800: #2f2b21;
+  --acme-gray-900: #1e1b13;
+  --acme-gray-950: #100e08;
+  --acme-red-50: #fbeeec;
+  --acme-red-300: #f3a395;
+  --acme-red-400: #ef7361;
+  --acme-red-500: #ac4334;
+  --acme-red-600: #a82e1e;
+  --acme-red-700: #97291b;
+  --acme-red-800: #7a2116;
+  --acme-sky-50: #edf1f4;
+  --acme-sky-300: #8db0c9;
+  --acme-sky-500: #5c87a6;
+  --acme-sky-600: #3e6b8c;
+  --acme-sky-700: #305875;
+  --acme-sky-800: #274860;
+  --acme-color-canvas: var(--acme-gray-50);
+  --acme-color-surface: var(--acme-gray-100);
+  --acme-color-surface-raised: var(--acme-gray-0);
+  --acme-color-border: var(--acme-gray-200);
+  --acme-color-border-strong: var(--acme-gray-400);
+  --acme-color-text: var(--acme-gray-900);
+  --acme-color-text-muted: var(--acme-gray-600);
+  --acme-color-text-subtle: var(--acme-gray-500);
+  --acme-color-primary: var(--acme-clay-600);
+  --acme-color-primary-hover: var(--acme-clay-700);
+  --acme-color-primary-active: var(--acme-clay-800);
+  --acme-color-on-primary: var(--acme-gray-0);
+  --acme-color-mark: var(--acme-clay-600);
+  --acme-color-accent: var(--acme-clay-700);
+  --acme-color-accent-soft: var(--acme-clay-50);
+  --acme-color-selected: var(--acme-clay-700);
+  --acme-color-selected-soft: var(--acme-clay-50);
+  --acme-color-link: var(--acme-clay-700);
+  --acme-color-link-hover: var(--acme-clay-800);
+  --acme-color-focus: var(--acme-clay-600);
+  --acme-color-success: var(--acme-gray-600);
+  --acme-color-success-soft: var(--acme-gray-100);
+  --acme-color-success-soft-text: var(--acme-gray-800);
+  --acme-color-warning: var(--acme-gray-600);
+  --acme-color-warning-soft: var(--acme-gray-100);
+  --acme-color-warning-soft-text: var(--acme-gray-800);
+  --acme-color-danger: var(--acme-red-700);
+  --acme-color-danger-emphasis: var(--acme-red-600);
+  --acme-color-danger-emphasis-hover: var(--acme-red-700);
+  --acme-color-danger-emphasis-active: var(--acme-red-800);
+  --acme-color-danger-soft: var(--acme-red-50);
+  --acme-color-danger-soft-text: var(--acme-red-700);
+  --acme-color-info: var(--acme-sky-700);
+  --acme-color-info-soft: var(--acme-sky-50);
+  --acme-color-info-soft-text: var(--acme-sky-800);
+  --acme-color-data: var(--acme-gray-400);
+  --acme-color-data-highlight: var(--acme-clay-900);
+  --acme-color-scrim: #100e0880;
+  --acme-shadow-sm: 0 1px 2px #1C19110F;
+  --acme-shadow-md: 0 2px 8px -2px #1C191117;
+  --acme-shadow-lg: 0 8px 24px -6px #1C191121;
+}
+[data-theme="dark"] {
+  --acme-color-canvas: var(--acme-gray-950);
+  --acme-color-surface: var(--acme-gray-900);
+  --acme-color-surface-raised: var(--acme-gray-800);
+  --acme-color-border: var(--acme-gray-600);
+  --acme-color-border-strong: var(--acme-gray-400);
+  --acme-color-text: var(--acme-gray-100);
+  --acme-color-text-muted: var(--acme-gray-200);
+  --acme-color-text-subtle: var(--acme-gray-300);
+  --acme-color-primary: var(--acme-clay-600);
+  --acme-color-primary-hover: var(--acme-clay-700);
+  --acme-color-primary-active: var(--acme-clay-800);
+  --acme-color-on-primary: var(--acme-gray-0);
+  --acme-color-mark: var(--acme-clay-600);
+  --acme-color-accent: var(--acme-clay-300);
+  --acme-color-accent-soft: #3d2c20;
+  --acme-color-selected: var(--acme-clay-300);
+  --acme-color-selected-soft: #3a2a1f;
+  --acme-color-link: var(--acme-clay-300);
+  --acme-color-link-hover: var(--acme-clay-200);
+  --acme-color-focus: var(--acme-clay-400);
+  --acme-color-success: var(--acme-gray-300);
+  --acme-color-success-soft: var(--acme-gray-800);
+  --acme-color-success-soft-text: var(--acme-gray-200);
+  --acme-color-warning: var(--acme-gray-300);
+  --acme-color-warning-soft: var(--acme-gray-800);
+  --acme-color-warning-soft-text: var(--acme-gray-200);
+  --acme-color-danger: var(--acme-red-400);
+  --acme-color-danger-emphasis: var(--acme-red-500);
+  --acme-color-danger-emphasis-hover: var(--acme-red-600);
+  --acme-color-danger-emphasis-active: var(--acme-red-700);
+  --acme-color-danger-soft: #38241a;
+  --acme-color-danger-soft-text: var(--acme-red-300);
+  --acme-color-info: var(--acme-sky-300);
+  --acme-color-info-soft: #2a2f2d;
+  --acme-color-info-soft-text: var(--acme-sky-300);
+  --acme-color-data: var(--acme-gray-400);
+  --acme-color-data-highlight: var(--acme-clay-200);
+  --acme-color-scrim: #100e0880;
+  --acme-shadow-sm: 0 1px 2px #00000059;
+  --acme-shadow-md: 0 2px 8px -2px #00000073;
+  --acme-shadow-lg: 0 8px 24px -6px #0000008C;
+}
+:root {
+  --acme-space-1: 0.25rem;
+  --acme-space-2: 0.5rem;
+  --acme-space-3: 0.75rem;
+  --acme-space-4: 1rem;
+  --acme-space-5: 1.25rem;
+  --acme-space-6: 1.5rem;
+  --acme-space-8: 2rem;
+  --acme-space-10: 2.5rem;
+  --acme-space-12: 3rem;
+  --acme-space-16: 4rem;
+  --acme-space-20: 5rem;
+  --acme-space-24: 6rem;
+  --acme-radius-sm: 4px;
+  --acme-radius-md: 8px;
+  --acme-radius-lg: 12px;
+  --acme-radius-xl: 16px;
+  --acme-radius-full: 999px;
+  --font-sans: "Styrene B", "Inter", "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Tiempos Headline", "Copernicus", "Source Serif 4", Georgia, "Times New Roman", ui-serif, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+.display { font-family: var(--font-display); font-size: 3rem; line-height: 1.1; font-weight: 700; letter-spacing: -0.015em; }
+.heading-1 { font-family: var(--font-display); font-size: 2.25rem; line-height: 1.2; font-weight: 700; letter-spacing: -0.015em; }
+.heading-2 { font-family: var(--font-display); font-size: 1.875rem; line-height: 1.2; font-weight: 700; letter-spacing: -0.01em; }
+.heading-3 { font-family: var(--font-display); font-size: 1.25rem; line-height: 1.2; font-weight: 700; }
+.heading-4 { font-family: var(--font-display); font-size: 1.125rem; line-height: 1.2; font-weight: 700; }
+.body { font-family: var(--font-sans); font-size: 1rem; line-height: 1.5; font-weight: 400; }
+.ui { font-family: var(--font-sans); font-size: 0.875rem; line-height: 1.5; font-weight: 400; }
+.ui-strong { font-family: var(--font-sans); font-size: 0.875rem; line-height: 1; font-weight: 600; }
+.caption { font-family: var(--font-sans); font-size: 0.75rem; line-height: 1.5; font-weight: 400; }
+.label-caps { font-family: var(--font-sans); font-size: 0.75rem; line-height: 1.5; font-weight: 600; letter-spacing: 0.05em; }
+.code { font-family: var(--font-mono); font-size: 0.875rem; line-height: 1.5; font-weight: 400; }
+@font-face { font-family: "Inter"; src: url("fonts/Inter-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "Inter"; src: url("fonts/Inter-Medium.woff2") format("woff2"); font-weight: 500; font-style: normal; font-display: swap; }
+@font-face { font-family: "Inter"; src: url("fonts/Inter-SemiBold.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: "Inter"; src: url("fonts/Inter-Bold.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Inter"; src: url("fonts/Inter-BoldItalic.woff2") format("woff2"); font-weight: 700; font-style: italic; font-display: swap; }
+@font-face { font-family: "Source Serif 4"; src: url("fonts/SourceSerif4-Bold.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: "Source Serif 4"; src: url("fonts/SourceSerif4-BoldItalic.woff2") format("woff2"); font-weight: 700; font-style: italic; font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; src: url("fonts/JetBrainsMono-Regular.woff2") format("woff2"); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; src: url("fonts/JetBrainsMono-SemiBold.woff2") format("woff2"); font-weight: 600; font-style: normal; font-display: swap; }

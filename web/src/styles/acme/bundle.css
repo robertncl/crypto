@@ -1,72 +1,24 @@
 /* ==========================================================================
-   ACME Corp Design Language — acme.css  (v2.0.0)
-   Single stylesheet: design tokens + base styles + core components.
+   ACME Corp Design Language — components/bundle.css
+   Joined from tokens/fonts.css + tokens/acme.css (v2.0.0); fonts are self-hosted
+   via tokens.css @font-face. Colours, spacing,
+   radii, shadows and font stacks live in tokens.json (compiled to tokens.css,
+   which loads first); this file holds what tokens.json cannot: the type scale,
+   motion, base styles, components, slide + doc patterns.
    ACME Corp is a fictional company; this file is a fixture for testing
-   design tooling. Canonical token data lives in tokens.json.
+   design tooling.
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
-   1. Tokens
+   1. Tokens tokens.json cannot hold
    -------------------------------------------------------------------------- */
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 
-  /* ACME Red — brand */
-  --acme-red-50: #FDF3F4;
-  --acme-red-100: #FAE3E6;
-  --acme-red-200: #F5C2C9;
-  --acme-red-300: #EC93A0;
-  --acme-red-400: #E05C70;
-  --acme-red-500: #D22F4C;
-  --acme-red-600: #C8102E;
-  --acme-red-700: #A60D26;
-  --acme-red-800: #8A0F23;
-  --acme-red-900: #741122;
-  --acme-red-950: #43060F;
-
-  /* Graphite — neutrals */
-  --acme-gray-0: #FFFFFF;
-  --acme-gray-50: #F8F9FA;
-  --acme-gray-100: #F1F3F5;
-  --acme-gray-200: #E4E7EB;
-  --acme-gray-300: #CDD2D9;
-  --acme-gray-400: #9AA1AC;
-  --acme-gray-500: #6C7480;
-  --acme-gray-600: #4E5560;
-  --acme-gray-700: #3A404A;
-  --acme-gray-800: #262B33;
-  --acme-gray-900: #16191F;
-  --acme-gray-950: #0C0E12;
-
-  /* Blueprint Blue — info & focus */
-  --acme-blue-50: #EFF4FE;
-  --acme-blue-100: #DEE9FD;
-  --acme-blue-200: #BCD2FA;
-  --acme-blue-300: #8FB0F5;
-  --acme-blue-400: #5F88EE;
-  --acme-blue-500: #3B82F6;
-  --acme-blue-600: #2563EB;
-  --acme-blue-700: #1D4ED8;
-
-  /* Go Green — success */
-  --acme-green-50: #F0FBF4;
-  --acme-green-300: #7FD99A;
-  --acme-green-400: #4CBB74;
-  --acme-green-500: #22C55E;
-  --acme-green-600: #15803D;
-  --acme-green-700: #116932;
-
-  /* Caution Amber — warning */
-  --acme-amber-50: #FEF8EB;
-  --acme-amber-300: #FCD34D;
-  --acme-amber-500: #F59E0B;
-  --acme-amber-700: #B45309;
-  --acme-amber-800: #92400E;
-
-  /* Typography */
-  --acme-font-sans: "Inter", "SF Pro Text", "Segoe UI", system-ui, sans-serif;
-  --acme-font-display: "Archivo", "Inter", "Segoe UI", system-ui, sans-serif;
-  --acme-font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+  /* Font stacks come from tokens.json type.families */
+  --acme-font-sans: var(--font-sans);
+  --acme-font-display: var(--font-display);
+  --acme-font-mono: var(--font-mono);
   --acme-text-xs: 0.75rem;
   --acme-text-sm: 0.875rem;
   --acme-text-md: 1rem;
@@ -81,153 +33,23 @@
   --acme-leading-normal: 1.5;
   --acme-leading-relaxed: 1.65;
 
-  /* Spacing — 4px grid */
-  --acme-space-1: 0.25rem;
-  --acme-space-2: 0.5rem;
-  --acme-space-3: 0.75rem;
-  --acme-space-4: 1rem;
-  --acme-space-5: 1.25rem;
-  --acme-space-6: 1.5rem;
-  --acme-space-8: 2rem;
-  --acme-space-10: 2.5rem;
-  --acme-space-12: 3rem;
-  --acme-space-16: 4rem;
-  --acme-space-20: 5rem;
-  --acme-space-24: 6rem;
-
-  /* Shape — restrained corporate radii; pills only for badges & switches */
-  --acme-radius-sm: 4px;
-  --acme-radius-md: 8px;
-  --acme-radius-lg: 12px;
-  --acme-radius-xl: 16px;
-  --acme-radius-full: 999px;
-
-  /* Elevation — quiet, structural; borders carry most of the separation */
-  --acme-shadow-sm: 0 1px 2px rgb(12 14 18 / 0.06);
-  --acme-shadow-md: 0 2px 8px -2px rgb(12 14 18 / 0.10);
-  --acme-shadow-lg: 0 8px 24px -6px rgb(12 14 18 / 0.14);
-
   /* Motion — calm and precise; nothing overshoots */
-  --acme-duration-fast: 100ms; /* @kind other */
-  --acme-duration-base: 150ms; /* @kind other */
-  --acme-duration-slow: 250ms; /* @kind other */
-  --acme-duration-deliberate: 400ms; /* @kind other */
-  --acme-ease-out: cubic-bezier(0.2, 0.8, 0.4, 1); /* @kind other */
-  --acme-ease-in-out: cubic-bezier(0.45, 0, 0.25, 1); /* @kind other */
+  --acme-duration-fast: 100ms;
+  --acme-duration-base: 150ms;
+  --acme-duration-slow: 250ms;
+  --acme-duration-deliberate: 400ms;
+  --acme-ease-out: cubic-bezier(0.2, 0.8, 0.4, 1);
+  --acme-ease-in-out: cubic-bezier(0.45, 0, 0.25, 1);
 
-  /* Semantic aliases — light theme (default) */
-  --acme-color-canvas: var(--acme-gray-0);
-  --acme-color-surface: var(--acme-gray-50);
-  --acme-color-surface-raised: var(--acme-gray-0);
-  --acme-color-border: var(--acme-gray-200);
-  --acme-color-border-strong: var(--acme-gray-300);
-  --acme-color-text: var(--acme-gray-900);
-  --acme-color-text-muted: var(--acme-gray-600);
-  --acme-color-text-subtle: var(--acme-gray-500);
-  --acme-color-primary: var(--acme-red-600);
-  --acme-color-primary-hover: var(--acme-red-700);
-  --acme-color-primary-active: var(--acme-red-800);
-  --acme-color-on-primary: var(--acme-gray-0);
-  --acme-color-link: var(--acme-red-700);
-  --acme-color-focus: var(--acme-blue-500);
-  --acme-color-success: var(--acme-green-600);
-  --acme-color-success-soft: var(--acme-green-50);
-  --acme-color-success-soft-text: var(--acme-green-700);
-  --acme-color-warning: var(--acme-amber-700);
-  --acme-color-warning-soft: var(--acme-amber-50);
-  --acme-color-warning-soft-text: var(--acme-amber-800);
-  --acme-color-danger: var(--acme-red-700);
-  --acme-color-danger-emphasis: var(--acme-red-700);
-  --acme-color-danger-soft: var(--acme-red-50);
-  --acme-color-danger-soft-text: var(--acme-red-700);
-  --acme-color-info: var(--acme-blue-600);
-  --acme-color-info-soft: var(--acme-blue-50);
-  --acme-color-info-soft-text: var(--acme-blue-700);
-  /* Chart marks: Blueprint carries data, red marks the single takeaway.
-     Pair is CVD-validated per surface — change only in step. */
-  --acme-color-data: var(--acme-blue-600);
-  --acme-color-data-highlight: var(--acme-red-600);
-
-  accent-color: var(--acme-color-primary);
+  /* Selection is orientation, not action — checked controls are Clay. */
+  accent-color: var(--acme-color-selected);
 }
-
-/* Semantic aliases — dark theme. Pin with data-theme="dark" on <html>
-   (also mirrors the OS preference via prefers-color-scheme, upstream v2.0.0). */
-@media (prefers-color-scheme: dark) {
-  :root[data-theme=""], :root:not([data-theme]) {
-    --acme-color-canvas: var(--acme-gray-950);
-    --acme-color-surface: var(--acme-gray-900);
-    --acme-color-surface-raised: var(--acme-gray-800);
-    --acme-color-border: var(--acme-gray-700);
-    --acme-color-border-strong: var(--acme-gray-600);
-    --acme-color-text: var(--acme-gray-100);
-    --acme-color-text-muted: var(--acme-gray-400);
-    --acme-color-text-subtle: var(--acme-gray-400);
-    --acme-color-primary: var(--acme-red-500);
-    --acme-color-primary-hover: var(--acme-red-400);
-    --acme-color-primary-active: var(--acme-red-600);
-    --acme-color-link: var(--acme-red-300);
-    --acme-color-focus: var(--acme-blue-400);
-    --acme-color-success: var(--acme-green-400);
-    --acme-color-success-soft: color-mix(in oklab, var(--acme-green-500) 16%, var(--acme-gray-900));
-    --acme-color-success-soft-text: var(--acme-green-300);
-    --acme-color-warning: var(--acme-amber-500);
-    --acme-color-warning-soft: color-mix(in oklab, var(--acme-amber-500) 16%, var(--acme-gray-900));
-    --acme-color-warning-soft-text: var(--acme-amber-300);
-    --acme-color-danger: var(--acme-red-400);
-    /* danger-emphasis is a fill under white text — red-400 would fail AA */
-    --acme-color-danger-emphasis: var(--acme-red-500);
-    --acme-color-danger-soft: color-mix(in oklab, var(--acme-red-500) 18%, var(--acme-gray-900));
-    --acme-color-danger-soft-text: var(--acme-red-300);
-    --acme-color-info: var(--acme-blue-400);
-    --acme-color-info-soft: color-mix(in oklab, var(--acme-blue-500) 16%, var(--acme-gray-900));
-    --acme-color-info-soft-text: var(--acme-blue-300);
-    --acme-color-data: var(--acme-blue-400);
-    --acme-color-data-highlight: var(--acme-red-500);
-    --acme-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.35);
-    --acme-shadow-md: 0 2px 8px -2px rgb(0 0 0 / 0.45);
-    --acme-shadow-lg: 0 8px 24px -6px rgb(0 0 0 / 0.55);
-  }
-}
-
-:root[data-theme="dark"] {
-  --acme-color-canvas: var(--acme-gray-950);
-  --acme-color-surface: var(--acme-gray-900);
-  --acme-color-surface-raised: var(--acme-gray-800);
-  --acme-color-border: var(--acme-gray-700);
-  --acme-color-border-strong: var(--acme-gray-600);
-  --acme-color-text: var(--acme-gray-100);
-  --acme-color-text-muted: var(--acme-gray-400);
-  --acme-color-text-subtle: var(--acme-gray-400);
-  --acme-color-primary: var(--acme-red-500);
-  --acme-color-primary-hover: var(--acme-red-400);
-  --acme-color-primary-active: var(--acme-red-600);
-  --acme-color-link: var(--acme-red-300);
-  --acme-color-focus: var(--acme-blue-400);
-  --acme-color-success: var(--acme-green-400);
-  --acme-color-success-soft: color-mix(in oklab, var(--acme-green-500) 16%, var(--acme-gray-900));
-  --acme-color-success-soft-text: var(--acme-green-300);
-  --acme-color-warning: var(--acme-amber-500);
-  --acme-color-warning-soft: color-mix(in oklab, var(--acme-amber-500) 16%, var(--acme-gray-900));
-  --acme-color-warning-soft-text: var(--acme-amber-300);
-  --acme-color-danger: var(--acme-red-400);
-  --acme-color-danger-emphasis: var(--acme-red-500);
-  --acme-color-danger-soft: color-mix(in oklab, var(--acme-red-500) 18%, var(--acme-gray-900));
-  --acme-color-danger-soft-text: var(--acme-red-300);
-  --acme-color-info: var(--acme-blue-400);
-  --acme-color-info-soft: color-mix(in oklab, var(--acme-blue-500) 16%, var(--acme-gray-900));
-  --acme-color-info-soft-text: var(--acme-blue-300);
-  --acme-color-data: var(--acme-blue-400);
-  --acme-color-data-highlight: var(--acme-red-500);
-  --acme-shadow-sm: 0 1px 2px rgb(0 0 0 / 0.35);
-  --acme-shadow-md: 0 2px 8px -2px rgb(0 0 0 / 0.45);
-  --acme-shadow-lg: 0 8px 24px -6px rgb(0 0 0 / 0.55);
-  color-scheme: dark;
-}
-
-:root[data-theme="light"] {
-  color-scheme: light;
-}
+/* Themes: tokens.css switches on data-theme="light" | "dark" on <html>.
+   To follow the OS, set it once at load:
+   document.documentElement.dataset.theme =
+     matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; */
+[data-theme="dark"] { color-scheme: dark; }
+[data-theme="light"] { color-scheme: light; }
 
 /* --------------------------------------------------------------------------
    2. Base
@@ -250,7 +72,7 @@ h1, h2, h3, h4 {
   margin: 0 0 var(--acme-space-3);
   font-weight: 700;
 }
-h1 { font-size: var(--acme-text-4xl); letter-spacing: -0.02em; }
+h1 { font-size: var(--acme-text-4xl); letter-spacing: -0.015em; }
 h2 { font-size: var(--acme-text-3xl); letter-spacing: -0.01em; }
 h3 { font-size: var(--acme-text-xl); }
 h4 { font-size: var(--acme-text-lg); }
@@ -261,7 +83,9 @@ a {
   color: var(--acme-color-link);
   text-decoration-thickness: 1px;
   text-underline-offset: 2px;
+  transition: color var(--acme-duration-fast) var(--acme-ease-out);
 }
+a:hover { color: var(--acme-color-link-hover); }
 
 code, pre {
   font-family: var(--acme-font-mono);
@@ -271,7 +95,6 @@ code, pre {
 :is(a, button, input, select, textarea, [tabindex]):focus-visible {
   outline: 2px solid var(--acme-color-focus);
   outline-offset: 2px;
-  border-radius: var(--acme-radius-sm);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -288,9 +111,9 @@ code, pre {
   display: inline-flex;
   align-items: center;
   gap: 0.45em;
-  font-family: var(--acme-font-display);
-  font-weight: 800;
-  letter-spacing: 0.12em;
+  font-family: var(--acme-font-sans);
+  font-weight: 700;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--acme-color-text);
   text-decoration: none;
@@ -301,11 +124,15 @@ code, pre {
   inline-size: 1.6em;
   block-size: 1.6em;
   border-radius: var(--acme-radius-sm);
-  background: var(--acme-red-600);
-  color: var(--acme-gray-0);
+  background: var(--acme-color-mark);
+  color: var(--acme-color-on-primary);
   font-style: italic;
   letter-spacing: 0;
 }
+/* On a dark ground inside a light page (footers, dark slides): warm-white
+   letters, and the mark lifts to clay-500 so it clears 3:1 against Oat 900. */
+.acme-wordmark--on-dark { color: var(--acme-gray-0); }
+.acme-wordmark--on-dark .acme-wordmark__mark { background: var(--acme-clay-500); }
 
 /* --------------------------------------------------------------------------
    4. Buttons
@@ -351,10 +178,21 @@ code, pre {
   background: var(--acme-color-danger-emphasis);
   color: var(--acme-color-on-primary);
 }
-.acme-btn--danger:hover { filter: brightness(0.92); }
+.acme-btn--danger:hover { background: var(--acme-color-danger-emphasis-hover); }
+.acme-btn--danger:active { background: var(--acme-color-danger-emphasis-active); }
 .acme-btn--sm { min-height: 2rem; padding: 0 var(--acme-space-3); font-size: var(--acme-text-xs); }
 .acme-btn--lg { min-height: 3rem; padding: 0 var(--acme-space-5); font-size: var(--acme-text-md); }
-.acme-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.acme-btn--icon { inline-size: 2rem; padding: 0; }
+/* Disabled: readable, not faded — surface fill, subtle ink (4.5:1+), no shadow. */
+.acme-btn:disabled,
+.acme-btn:disabled:hover,
+.acme-btn:disabled:active {
+  background: var(--acme-color-surface);
+  border-color: var(--acme-color-border);
+  color: var(--acme-color-text-subtle);
+  box-shadow: none;
+  cursor: not-allowed;
+}
 
 /* --------------------------------------------------------------------------
    5. Forms
@@ -382,7 +220,7 @@ textarea.acme-input { padding: var(--acme-space-2) var(--acme-space-3); min-heig
 .acme-input:hover { border-color: var(--acme-color-text-subtle); }
 .acme-input::placeholder { color: var(--acme-color-text-subtle); }
 .acme-input[aria-invalid="true"] { border-color: var(--acme-color-danger); }
-.acme-input:disabled { background: var(--acme-color-surface); opacity: 0.6; cursor: not-allowed; }
+.acme-input:disabled { background: var(--acme-color-surface); border-color: var(--acme-color-border); color: var(--acme-color-text-subtle); cursor: not-allowed; }
 .acme-help { font-size: var(--acme-text-xs); color: var(--acme-color-text-muted); }
 .acme-error {
   font-size: var(--acme-text-xs);
@@ -434,7 +272,7 @@ textarea.acme-input { padding: var(--acme-space-2) var(--acme-space-3); min-heig
   box-shadow: var(--acme-shadow-sm);
   transition: translate var(--acme-duration-base) var(--acme-ease-out);
 }
-.acme-switch input:checked { background: var(--acme-color-primary); }
+.acme-switch input:checked { background: var(--acme-color-selected); }
 .acme-switch input:checked::before { translate: 1rem 0; }
 
 /* --------------------------------------------------------------------------
@@ -488,6 +326,7 @@ textarea.acme-input { padding: var(--acme-space-2) var(--acme-space-3); min-heig
   background: var(--acme-color-surface);
   color: var(--acme-color-text-muted);
 }
+.acme-status-icon { flex: none; }
 .acme-badge--success { background: var(--acme-color-success-soft); color: var(--acme-color-success-soft-text); }
 .acme-badge--warning { background: var(--acme-color-warning-soft); color: var(--acme-color-warning-soft-text); }
 .acme-badge--danger  { background: var(--acme-color-danger-soft);  color: var(--acme-color-danger-soft-text); }
@@ -506,8 +345,13 @@ textarea.acme-input { padding: var(--acme-space-2) var(--acme-space-3); min-heig
   background: var(--acme-color-info-soft);
   font-size: var(--acme-text-sm);
 }
+.acme-alert__icon { display: flex; padding-block-start: 0.125rem; color: var(--acme-color-info); }
+.acme-alert--success .acme-alert__icon { color: var(--acme-color-success); }
+.acme-alert--warning .acme-alert__icon { color: var(--acme-color-warning); }
+.acme-alert--danger .acme-alert__icon { color: var(--acme-color-danger); }
 .acme-alert__title { font-weight: 700; margin-block-end: var(--acme-space-1); }
 .acme-alert p:last-child { margin: 0; }
+.acme-alert--info    { border-inline-start-color: var(--acme-color-info);    background: var(--acme-color-info-soft); }
 .acme-alert--success { border-inline-start-color: var(--acme-color-success); background: var(--acme-color-success-soft); }
 .acme-alert--warning { border-inline-start-color: var(--acme-color-warning); background: var(--acme-color-warning-soft); }
 .acme-alert--danger  { border-inline-start-color: var(--acme-color-danger);  background: var(--acme-color-danger-soft); }
@@ -537,11 +381,21 @@ textarea.acme-input { padding: var(--acme-space-2) var(--acme-space-3); min-heig
 .acme-table tbody tr:hover { background: var(--acme-color-surface); }
 .acme-table .acme-table__num { text-align: end; font-variant-numeric: tabular-nums; }
 
+/* Clay marks orientation: which column orders the data, which rows are held */
+.acme-table th:is([aria-sort="ascending"], [aria-sort="descending"]) {
+  color: var(--acme-color-selected);
+  border-block-end-color: var(--acme-color-selected);
+}
+.acme-table tbody tr[aria-selected="true"],
+.acme-table tbody tr[aria-selected="true"]:hover {
+  background: var(--acme-color-selected-soft);
+}
+
 /* --------------------------------------------------------------------------
    10. Tabs
    -------------------------------------------------------------------------- */
 /* Underline tabs: a hairline baseline across the set; the selected tab
-   carries a 2 px neutral indicator that sits on the baseline. */
+   carries a 2 px Clay indicator that sits on the baseline. */
 .acme-tabs {
   display: flex;
   gap: var(--acme-space-2);
@@ -561,9 +415,11 @@ textarea.acme-input { padding: var(--acme-space-2) var(--acme-space-3); min-heig
     color var(--acme-duration-base) var(--acme-ease-out);
 }
 .acme-tab:hover { color: var(--acme-color-text); }
+.acme-tab__count { margin-inline-start: var(--acme-space-1); color: var(--acme-color-text-subtle); font-variant-numeric: tabular-nums; }
+.acme-tab[aria-selected="true"] .acme-tab__count { color: inherit; }
 .acme-tab[aria-selected="true"] {
-  border-block-end-color: var(--acme-color-text);
-  color: var(--acme-color-text);
+  border-block-end-color: var(--acme-color-selected);
+  color: var(--acme-color-selected);
   font-weight: 600;
 }
 
@@ -595,8 +451,8 @@ textarea.acme-input { padding: var(--acme-space-2) var(--acme-space-3); min-heig
 }
 .acme-topbar__link:hover { color: var(--acme-color-text); background: var(--acme-color-surface); }
 .acme-topbar__link[aria-current="page"] {
-  background: var(--acme-color-surface);
-  color: var(--acme-color-text);
+  background: var(--acme-color-selected-soft);
+  color: var(--acme-color-selected);
   font-weight: 600;
 }
 
@@ -620,7 +476,7 @@ textarea.acme-input { padding: var(--acme-space-2) var(--acme-space-3); min-heig
   display: grid;
   place-items: center;
   padding: var(--acme-space-5);
-  background: rgb(12 14 18 / 0.5);
+  background: var(--acme-color-scrim);
 }
 .acme-modal {
   inline-size: min(28rem, 100%);
@@ -642,4 +498,226 @@ textarea.acme-input { padding: var(--acme-space-2) var(--acme-space-3); min-heig
   justify-content: flex-end;
   gap: var(--acme-space-2);
   padding: var(--acme-space-4) var(--acme-space-6) var(--acme-space-6);
+}
+
+/* --------------------------------------------------------------------------
+   13. Presentation slides
+   Slide type is sized in cqi so a slide renders correctly at any width
+   (thumbnail, editor, projector). cqi on the container itself would resolve
+   against an ancestor, so the padding lives on a required inner __frame.
+   -------------------------------------------------------------------------- */
+.acme-slide {
+  container-type: inline-size;
+  aspect-ratio: 16 / 9;
+  display: flex;
+  overflow: hidden;
+  background: var(--acme-color-canvas);
+  color: var(--acme-color-text);
+}
+.acme-slide__frame {
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 5cqi 6cqi;
+}
+.acme-slide .acme-wordmark { font-size: 2cqi; }
+.acme-slide__kicker {
+  font: 700 1.8cqi/1.2 var(--acme-font-sans);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--acme-color-accent);
+  margin: 0 0 1.5cqi;
+}
+.acme-slide__title {
+  font: 700 4cqi/1.15 var(--acme-font-display);
+  letter-spacing: -0.02em;
+  margin: 0 0 2cqi;
+}
+.acme-slide--hero .acme-slide__title { font-size: 6cqi; margin-block-end: 1cqi; }
+.acme-slide__meta {
+  font-size: 1.8cqi;
+  color: var(--acme-color-text-muted);
+  margin: 0;
+}
+.acme-slide__body {
+  font-size: 2.2cqi;
+  line-height: var(--acme-leading-normal);
+  color: var(--acme-color-text-muted);
+  max-inline-size: 66cqi;
+  margin: 0;
+}
+.acme-slide__bullets {
+  margin: 0;
+  padding-inline-start: 2.5cqi;
+  display: grid;
+  gap: 1.5cqi;
+  font-size: 2.2cqi;
+  line-height: var(--acme-leading-snug);
+  max-inline-size: 66cqi;
+}
+.acme-slide__bullets li::marker { color: var(--acme-color-accent); }
+.acme-slide__footer {
+  margin-block-start: auto;
+  padding-block-start: 2cqi;
+  display: flex;
+  align-items: center;
+  gap: 2cqi;
+  font-size: 1.4cqi;
+  color: var(--acme-color-text-subtle);
+}
+.acme-slide__footer .acme-wordmark { font-size: 1.4cqi; }
+.acme-slide__footer-num { margin-inline-start: auto; font-variant-numeric: tabular-nums; }
+
+/* Dark bookends (title & closing) keep the dark Oat ground regardless of
+   theme. This background never lightens with the page, so nothing on it may
+   key off a token that would — hence the pinned accent: the light-theme
+   clay-700 would sit at ~2.5:1 here, while clay-300 clears 8.8:1. */
+.acme-slide--dark {
+  background: var(--acme-gray-950);
+  color: var(--acme-gray-100);
+}
+.acme-slide--dark :is(.acme-slide__meta, .acme-slide__body) { color: var(--acme-gray-200); }
+.acme-slide--dark .acme-slide__footer { color: var(--acme-gray-300); }
+.acme-slide--dark .acme-wordmark { color: var(--acme-gray-0); }
+.acme-slide--dark .acme-wordmark__mark { background: var(--acme-clay-500); }
+.acme-slide--dark .acme-slide__kicker { color: var(--acme-clay-300); }
+.acme-slide--dark .acme-slide__bullets li::marker { color: var(--acme-clay-300); }
+.acme-slide--dark .acme-slide__num { color: var(--acme-clay-300); }
+
+/* Section divider — pairs with .acme-slide--dark in markup. The giant serif
+   numeral is the divider's signal; it takes the pinned Clay accent as the
+   one warm editorial moment in the deck. */
+.acme-slide--section .acme-slide__num {
+  font: 700 12cqi/1 var(--acme-font-display);
+  font-style: italic;
+  color: var(--acme-color-accent);
+  margin: 0 0 1cqi;
+}
+.acme-slide--section .acme-slide__title { margin: 0; }
+
+/* Data slide chart — value carries data, not hue */
+.acme-slide__chart {
+  flex: 1;
+  min-block-size: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 1.5cqi;
+  border-block-end: 1px solid var(--acme-color-border-strong);
+}
+.acme-slide__col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.8cqi;
+}
+.acme-slide__bar {
+  inline-size: 68%;
+  background: var(--acme-color-data);
+  border-radius: min(4px, 0.4cqi) min(4px, 0.4cqi) 0 0;
+}
+.acme-slide__bar--highlight { background: var(--acme-color-data-highlight); }
+.acme-slide__bar-label {
+  font: 600 1.6cqi/1 var(--acme-font-sans);
+  font-variant-numeric: tabular-nums;
+}
+.acme-slide__ticks {
+  display: flex;
+  gap: 1.5cqi;
+  padding-block-start: 0.8cqi;
+  font-size: 1.4cqi;
+  color: var(--acme-color-text-subtle);
+}
+.acme-slide__ticks span { flex: 1; text-align: center; }
+
+/* --------------------------------------------------------------------------
+   14. Report document
+   Long-form editorial styles. Clay appears in exactly three places, all via
+   --acme-color-accent: the cover rule, heading numerals, and the key-finding
+   callout accent. Accent is a mark, never an action — it is a separate token
+   from --acme-color-primary for that reason.
+   -------------------------------------------------------------------------- */
+.acme-doc {
+  max-inline-size: 65ch;
+  font-size: var(--acme-text-md);
+  line-height: var(--acme-leading-relaxed);
+  counter-reset: doc-h2 doc-fig;
+}
+.acme-doc h2 {
+  counter-increment: doc-h2;
+  counter-reset: doc-h3;
+  margin-block: var(--acme-space-8) var(--acme-space-3);
+}
+.acme-doc h3 {
+  counter-increment: doc-h3;
+  margin-block: var(--acme-space-6) var(--acme-space-2);
+}
+.acme-doc h2::before { content: counter(doc-h2) ".\2002"; color: var(--acme-color-accent); }
+.acme-doc h3::before { content: counter(doc-h2) "." counter(doc-h3) "\2002"; color: var(--acme-color-accent); }
+
+.acme-doc-kicker {
+  font: 700 var(--acme-text-xs)/1.2 var(--acme-font-sans);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--acme-color-accent);
+  margin: 0 0 var(--acme-space-2);
+}
+.acme-doc-rule {
+  inline-size: var(--acme-space-16);
+  block-size: 4px;
+  border: none;
+  border-radius: 2px;
+  background: var(--acme-color-accent);
+  margin: var(--acme-space-4) 0;
+}
+.acme-doc-meta {
+  font-size: var(--acme-text-sm);
+  color: var(--acme-color-text-muted);
+  margin: 0;
+}
+
+.acme-callout {
+  border-inline-start: 3px solid var(--acme-color-accent);
+  border-radius: var(--acme-radius-md);
+  background: var(--acme-color-surface);
+  padding: var(--acme-space-4) var(--acme-space-5);
+  margin: var(--acme-space-6) 0;
+}
+.acme-callout__label {
+  font: 700 var(--acme-text-xs)/1.2 var(--acme-font-sans);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--acme-color-accent);
+  margin: 0 0 var(--acme-space-1);
+}
+.acme-callout p:last-child { margin: 0; }
+
+.acme-figure { margin: var(--acme-space-6) 0; }
+.acme-figure figcaption {
+  font-size: var(--acme-text-xs);
+  color: var(--acme-color-text-muted);
+  margin-block-start: var(--acme-space-2);
+}
+.acme-figure figcaption::before {
+  counter-increment: doc-fig;
+  content: "Figure " counter(doc-fig) " — ";
+  font-weight: 600;
+}
+
+.acme-doc-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--acme-space-4);
+  border-block-start: 1px solid var(--acme-color-border);
+  padding-block-start: var(--acme-space-2);
+  font-size: var(--acme-text-xs);
+  color: var(--acme-color-text-subtle);
+}
+
+@media print {
+  * { box-shadow: none !important; }
+  .acme-figure, .acme-callout, .acme-card, table { break-inside: avoid; }
+  .acme-doc { max-inline-size: none; }
 }

@@ -57,6 +57,7 @@ phased migration roadmap.
 **Frontend**
 - React + TypeScript trading terminal: candlestick chart (TradingView lightweight-charts),
   live order book with depth bars, trade feed, order entry, open orders/history, wallet
+- Built on the ACME Design System (light and dark themes, self-hosted fonts)
 
 ---
 
@@ -89,9 +90,11 @@ web/
   src/
     api/              typed REST client, WS client, wire types
     state/            auth context
-    hooks/            stream + balances hooks
+    hooks/            stream, ticker, balances and theme hooks
     components/       Chart, OrderBook, TradesFeed, OrderForm, UserOrders, ...
-    pages/            Trade, Markets, Wallet, Login, Register
+      acme/           React ports of the ACME Design System components
+    styles/acme/      vendored ACME tokens, component CSS and self-hosted fonts
+    pages/            Markets, Trade, Futures, Earn, Wallet, Login, Register
 ```
 
 ---

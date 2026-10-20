@@ -1,49 +1,57 @@
-import { useEffect, useState, type ReactNode } from "react";
-import { api } from "../api/client";
+import type { ReactNode } from "react";
 import type { Market, Ticker } from "../api/types";
-import { useChannel } from "../hooks/useStream";
-import { fmt, fmtCompact, fmtPct, toNum } from "../utils/format";
+import { fmt, fmtCompact, fmtPct, fmtSigned, stepDecimals, toNum } from "../utils/format";
+import { AssetIcon, Direction } from "./common";
 
-export function TickerBar({ market }: { market: Market }) {
-  const [t, setT] = useState<Ticker | null>(null);
-
-  useEffect(() => {
-    let live = true;
-    api.tickers().then((all) => {
-      if (live) setT(all.find((x) => x.market === market.symbol) ?? null);
-    }).catch(() => {});
-    return () => { live = false; };
-  }, [market.symbol]);
-
-  useChannel<Ticker>(`ticker:${market.symbol}`, setT);
-
+/**
+ * The band above the terminal: market identity (the page's h1), the live last
+ * price, and 24h stats. `children` are extra <Stat>s shown first (the futures
+ * page adds mark, index and funding).
+ */
+export function TickerBar({ market, ticker: t, title, subtitle, badge, children }: {
+  market: Market;
+  ticker: Ticker | null;
+  title: string;
+  subtitle: string;
+  badge?: ReactNode;
+  children?: ReactNode;
+}) {
+  const pd = stepDecimals(market.priceTick);
   const up = toNum(t?.change) >= 0;
 
   return (
-    <div className="tickerbar">
-      <div className="tickerbar__symbol">
-        <span className="tickerbar__pair">{market.base}<span className="muted">/{market.quote}</span></span>
-        <span className="badge">Spot</span>
+    <div className="tickerband">
+      <div className="tickerbar">
+        <div className="tickerbar__id">
+          <AssetIcon symbol={market.base} large />
+          <div className="tickerbar__title">
+            <div className="tickerbar__name"><h1>{title}</h1>{badge}</div>
+            <span className="tickerbar__sub">{subtitle}</span>
+          </div>
+        </div>
+        <div className="tickerbar__last" aria-live="off">
+          <Direction up={up} className="tickerbar__price">{t ? fmt(t.last, pd) : "—"}</Direction>
+        </div>
+        <dl className="tickerbar__stats">
+          {children}
+          <Stat label="24h change">
+            <span className={up ? "up" : "down"}>{t ? `${fmtSigned(t.change, pd)} (${fmtPct(t.changePct)})` : "—"}</span>
+          </Stat>
+          <Stat label="24h high">{t ? fmt(t.high24h, pd) : "—"}</Stat>
+          <Stat label="24h low">{t ? fmt(t.low24h, pd) : "—"}</Stat>
+          <Stat label={`24h volume (${market.base})`}>{t ? fmtCompact(t.volume24h) : "—"}</Stat>
+          <Stat label={`24h volume (${market.quote})`}>{t ? fmtCompact(t.quoteVol24h) : "—"}</Stat>
+        </dl>
       </div>
-      <div className="tickerbar__last">
-        <span className={up ? "up" : "down"}>{fmt(t?.last ?? "0", 2)}</span>
-      </div>
-      <Stat label="24h Change" value={
-        <span className={up ? "up" : "down"}>{fmtPct(t?.changePct ?? "0")}</span>
-      } />
-      <Stat label="24h High" value={fmt(t?.high24h ?? "0", 2)} />
-      <Stat label="24h Low" value={fmt(t?.low24h ?? "0", 2)} />
-      <Stat label={`24h Vol (${market.base})`} value={fmtCompact(t?.volume24h ?? "0")} />
-      <Stat label={`24h Vol (${market.quote})`} value={fmtCompact(t?.quoteVol24h ?? "0")} />
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: ReactNode }) {
+export function Stat({ label, children }: { label: ReactNode; children: ReactNode }) {
   return (
     <div className="stat">
-      <div className="stat__label">{label}</div>
-      <div className="stat__value">{value}</div>
+      <dt>{label}</dt>
+      <dd>{children}</dd>
     </div>
   );
 }

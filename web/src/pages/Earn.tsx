@@ -6,7 +6,9 @@ import { useAuth } from "../state/auth";
 import { useBalances } from "../hooks/useBalances";
 import { usePrices } from "../hooks/usePrices";
 import { useChannel } from "../hooks/useStream";
-import { fmt, fmtUsd, toNum, trimDecimal } from "../utils/format";
+import { fmt, fmtDate, fmtShortDate, fmtUsd, toNum, trimDecimal } from "../utils/format";
+import { Alert, Badge, Button, Field, Input, Tabs, buttonClass, tabPanelProps } from "../components/acme";
+import { AssetCell, AssetIcon, SrOnly } from "../components/common";
 
 const DAY = 24 * 60 * 60;
 
@@ -14,9 +16,16 @@ function aprPct(apr: string): string {
   return `${(toNum(apr) * 100).toFixed(2)}%`;
 }
 
-function termLabel(p: EarnProduct): string {
-  return p.kind === "flexible" ? "Flexible" : `${p.termDays} days`;
+function termLabel(kind: EarnProduct["kind"], termDays: number): string {
+  return kind === "flexible" ? "Flexible" : `${termDays} days`;
 }
+
+/** Display decimals per asset: cents for USDT, more for coins. */
+function dp(asset: string): number {
+  return asset === "USDT" ? 2 : 6;
+}
+
+type Notice = { ok: boolean; title: string; text: string };
 
 export function Earn() {
   const { user } = useAuth();
@@ -24,9 +33,17 @@ export function Earn() {
   const { prices, priceOf } = usePrices();
   const [products, setProducts] = useState<EarnProduct[]>([]);
   const [positions, setPositions] = useState<EarnPosition[]>([]);
+  const [filter, setFilter] = useState("all");
+  const [selectedId, setSelectedId] = useState("");
+  const [notice, setNotice] = useState<Notice | null>(null);
 
   useEffect(() => {
-    api.earnProducts().then(setProducts).catch(() => {});
+    api.earnProducts().then((list) => {
+      setProducts(list);
+      // Start on the highest-yield product.
+      const best = [...list].sort((a, b) => toNum(b.apr) - toNum(a.apr))[0];
+      if (best) setSelectedId((id) => id || best.id);
+    }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -41,7 +58,12 @@ export function Earn() {
     reload();
   });
 
+  const byId = useMemo(() => Object.fromEntries(products.map((p) => [p.id, p])), [products]);
   const active = useMemo(() => positions.filter((p) => p.status === "active"), [positions]);
+  const redeemed = useMemo(() => positions.filter((p) => p.status === "redeemed"), [positions]);
+  const assets = useMemo(() => [...new Set(products.map((p) => p.asset))], [products]);
+  const shown = products.filter((p) => filter === "all" || p.asset === filter);
+  const selected = byId[selectedId];
 
   const totals = useMemo(() => {
     let principal = 0;
@@ -61,235 +83,285 @@ export function Earn() {
     reload();
   }
 
-  async function redeem(id: string) {
-    await api.earnRedeem(id);
-    api.earnPositions().then(setPositions).catch(() => {});
-    reload();
+  async function redeem(pos: EarnPosition) {
+    setNotice(null);
+    try {
+      await api.earnRedeem(pos.id);
+      setNotice({ ok: true, title: "Redeemed", text: `${fmt(pos.principal, dp(pos.asset))} ${pos.asset} plus ${fmt(pos.accruedTotal, dp(pos.asset) + 2)} ${pos.asset} of interest is back in your spendable balance.` });
+      api.earnPositions().then(setPositions).catch(() => {});
+      reload();
+    } catch (err) {
+      setNotice({ ok: false, title: "Not redeemed", text: err instanceof ApiError ? err.message : "The exchange didn’t respond. Try again." });
+    }
   }
 
   return (
-    <div className="page page--earn">
-      <div className="earn-hero card">
-        <div>
-          <div className="muted">Earn — put idle crypto to work</div>
-          <h1 className="earn-hero__title">Simple, flexible & fixed-term yield</h1>
-          <p className="muted">
-            Subscribe an asset to start earning interest, paid continuously to your spendable balance.
-            Flexible products can be redeemed anytime; fixed-term products lock until maturity for a higher rate.
+    <div className="page">
+      <div className="page-head">
+        <div className="page-head__text">
+          <p className="kicker">Earn</p>
+          <h1>Put idle crypto to work</h1>
+          <p className="lede">
+            Subscribe an asset and interest pays continuously to your spendable balance. Flexible products redeem
+            anytime. Fixed terms lock until maturity for a higher rate.
           </p>
         </div>
         {user && (
-          <div className="earn-hero__stats">
-            <div>
-              <div className="muted small">Subscribed</div>
-              <div className="earn-hero__value">{fmtUsd(totals.principal)}</div>
-            </div>
-            <div>
-              <div className="muted small">Total interest earned</div>
-              <div className="earn-hero__value up">{fmtUsd(totals.accrued)}</div>
-            </div>
-          </div>
+          <dl className="stats">
+            <div><dt>Subscribed</dt><dd>{fmtUsd(totals.principal)}</dd></div>
+            <div><dt>Interest earned</dt><dd>+{fmtUsd(totals.accrued)}</dd></div>
+          </dl>
         )}
       </div>
 
-      {user && active.length > 0 && (
-        <section className="card">
-          <h2 className="card__title">Your active subscriptions</h2>
-          <table className="dtable">
-            <thead>
-              <tr>
-                <th scope="col">Product</th>
-                <th scope="col" className="r">Principal</th>
-                <th scope="col" className="r">APR</th>
-                <th scope="col" className="r">Interest earned</th>
-                <th scope="col">Status</th>
-                <th scope="col" className="r">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {active.map((p) => (
-                <PositionRow key={p.id} pos={p} onRedeem={redeem} />
-              ))}
-            </tbody>
-          </table>
+      {user && (
+        <section className="section" aria-labelledby="subs-heading">
+          <div className="section__head">
+            <h2 id="subs-heading">Your subscriptions</h2>
+            <span className="section__meta">{active.length} active</span>
+          </div>
+          {notice && <Alert variant={notice.ok ? "success" : "danger"} title={notice.title}>{notice.text}</Alert>}
+          <div className="table-card">
+            <div className="table-pad table-pad--mid">
+              {active.length === 0 ? (
+                <p className="panel__empty">Nothing subscribed yet. Pick a product below to start earning.</p>
+              ) : (
+                <table className="acme-table">
+                  <caption className="visually-hidden">Your active subscriptions</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Product</th>
+                      <th scope="col" className="acme-table__num">Principal</th>
+                      <th scope="col" className="acme-table__num">APR</th>
+                      <th scope="col" className="acme-table__num">Interest earned</th>
+                      <th scope="col">Status</th>
+                      <th scope="col"><SrOnly>Actions</SrOnly></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {active.map((p) => (
+                      <SubscriptionRow key={p.id} pos={p} termDays={byId[p.productId]?.termDays ?? 0} onRedeem={redeem} />
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
         </section>
       )}
 
-      <section className="card">
-        <h2 className="card__title">Products</h2>
-        {!user && (
-          <div className="formmsg formmsg--warn">
-            <Link to="/login">Log in</Link> to subscribe and start earning.
+      <section className="section" aria-labelledby="products-heading">
+        <div className="section__head"><h2 id="products-heading">Products</h2></div>
+        <div className="split">
+          <div className="split__main panel">
+            <div className="panel__head panel__head--tabs">
+              <Tabs
+                tabs={[{ id: "all", label: "All" }, ...assets.map((a) => ({ id: a, label: a }))]}
+                active={filter}
+                onChange={setFilter}
+                idPrefix="asset"
+                label="Filter products by asset"
+              />
+            </div>
+            <div className="table-x" {...tabPanelProps("asset", filter)}>
+              <div className="table-pad table-pad--narrow">
+              <table className="acme-table">
+                <caption className="visually-hidden">Earn products</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Asset</th>
+                    <th scope="col">Term</th>
+                    <th scope="col" className="acme-table__num">APR</th>
+                    <th scope="col" className="acme-table__num">Minimum</th>
+                    <th scope="col"><SrOnly>Select</SrOnly></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shown.map((p) => {
+                    const on = p.id === selectedId;
+                    return (
+                      <tr key={p.id} aria-selected={on}>
+                        <td><AssetCell symbol={p.asset} title={p.asset} /></td>
+                        <td>{termLabel(p.kind, p.termDays)}</td>
+                        <td className="acme-table__num strong">{aprPct(p.apr)}</td>
+                        <td className="acme-table__num muted">{trimDecimal(p.minAmount)} {p.asset}</td>
+                        <td className="acme-table__num">
+                          <Button
+                            variant={on ? "ghost" : "secondary"} size="sm" aria-pressed={on}
+                            onClick={() => setSelectedId(p.id)}
+                            aria-label={`${on ? "Selected" : "Choose"} ${p.asset} ${termLabel(p.kind, p.termDays)} at ${aprPct(p.apr)} APR`}
+                          >
+                            {on ? "Selected" : "Choose"}
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              </div>
+            </div>
           </div>
-        )}
-        <div className="earn-grid">
-          {products.map((p) => (
-            <ProductCard
-              key={p.id}
-              product={p}
-              available={get(p.asset).available}
-              canSubscribe={!!user}
+          {selected && (
+            <SubscribePanel
+              key={selected.id}
+              product={selected}
+              available={get(selected.asset).available}
+              price={priceOf(selected.asset)}
+              signedIn={!!user}
               onSubscribe={subscribe}
+              onDone={setNotice}
             />
-          ))}
+          )}
         </div>
       </section>
 
-      {user && positions.some((p) => p.status === "redeemed") && (
-        <section className="card">
-          <h2 className="card__title">Redeemed</h2>
-          <table className="dtable">
-            <thead>
-              <tr>
-                <th scope="col">Product</th>
-                <th scope="col" className="r">Principal</th>
-                <th scope="col" className="r">Interest earned</th>
-                <th scope="col">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {positions.filter((p) => p.status === "redeemed").map((p) => (
-                <tr key={p.id}>
-                  <td><strong>{p.productId}</strong></td>
-                  <td className="r mono">{fmt(p.principal, 6)} {p.asset}</td>
-                  <td className="r mono up">{fmt(p.accruedTotal, 6)} {p.asset}</td>
-                  <td><span className="status status--completed">redeemed</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {user && redeemed.length > 0 && (
+        <section className="section" aria-labelledby="redeemed-heading">
+          <div className="section__head"><h2 id="redeemed-heading">Redeemed</h2></div>
+          <div className="table-card">
+            <div className="table-pad table-pad--narrow">
+              <table className="acme-table">
+                <caption className="visually-hidden">Redeemed subscriptions</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Product</th>
+                    <th scope="col" className="acme-table__num">Principal</th>
+                    <th scope="col" className="acme-table__num">Interest earned</th>
+                    <th scope="col">Redeemed</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {redeemed.map((p) => (
+                    <tr key={p.id}>
+                      <td className="strong">{p.asset} · {termLabel(p.kind, byId[p.productId]?.termDays ?? 0)}</td>
+                      <td className="acme-table__num">{fmt(p.principal, dp(p.asset))} {p.asset}</td>
+                      <td className="acme-table__num up">+{fmt(p.accruedTotal, dp(p.asset) + 2)} {p.asset}</td>
+                      <td className="muted">{p.redeemedAt ? fmtDate(p.redeemedAt) : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </section>
       )}
     </div>
   );
 }
 
-function PositionRow({ pos, onRedeem }: { pos: EarnPosition; onRedeem: (id: string) => Promise<void> }) {
+function SubscriptionRow({ pos, termDays, onRedeem }: { pos: EarnPosition; termDays: number; onRedeem: (p: EarnPosition) => Promise<void> }) {
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
   const now = Date.now() / 1000;
   const matured = pos.kind === "flexible" || pos.maturityAt === 0 || now >= pos.maturityAt;
-  const daysLeft = matured ? 0 : Math.ceil((pos.maturityAt - now) / DAY);
-
-  async function doRedeem() {
-    setBusy(true);
-    setErr("");
-    try {
-      await onRedeem(pos.id);
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "Redeem failed");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const term = termLabel(pos.kind, termDays);
 
   return (
     <tr>
-      <td>
-        <strong>{pos.productId}</strong>{" "}
-        <span className="badge badge--soft">{pos.kind === "flexible" ? "Flexible" : "Fixed"}</span>
-      </td>
-      <td className="r mono">{fmt(pos.principal, 6)} {pos.asset}</td>
-      <td className="r mono">{aprPct(pos.apr)}</td>
-      <td className="r mono up">{fmt(pos.accruedTotal, 8)} {pos.asset}</td>
-      <td>
-        {matured ? (
-          <span className="status status--open">earning</span>
-        ) : (
-          <span className="muted small">matures in {daysLeft}d</span>
-        )}
-      </td>
-      <td className="r">
-        <button className="btn btn--mini" disabled={!matured || busy} onClick={doRedeem}>
-          {busy ? "…" : "Redeem"}
-        </button>
-        {err && <div className="formmsg formmsg--err" role="alert">{err}</div>}
+      <td><AssetCell symbol={pos.asset} title={`${pos.asset} · ${term}`} sub={`Since ${fmtDate(pos.startAt)}`} /></td>
+      <td className="acme-table__num">{fmt(pos.principal, dp(pos.asset))} {pos.asset}</td>
+      <td className="acme-table__num">{aprPct(pos.apr)}</td>
+      <td className="acme-table__num up">+{fmt(pos.accruedTotal, dp(pos.asset) + 2)} {pos.asset}</td>
+      <td>{matured ? <Badge variant="success">Earning</Badge> : <Badge>Matures {fmtShortDate(pos.maturityAt)}</Badge>}</td>
+      <td className="acme-table__num">
+        <Button
+          size="sm"
+          disabled={!matured || busy}
+          onClick={async () => { setBusy(true); await onRedeem(pos); setBusy(false); }}
+          aria-label={matured ? `Redeem ${fmt(pos.principal, dp(pos.asset))} ${pos.asset}` : `${pos.asset} ${term} is locked until ${fmtDate(pos.maturityAt)}`}
+        >
+          {busy ? "Redeeming…" : matured ? "Redeem" : "Locked"}
+        </Button>
       </td>
     </tr>
   );
 }
 
-function ProductCard({
-  product, available, canSubscribe, onSubscribe,
-}: {
+function SubscribePanel({ product, available, price, signedIn, onSubscribe, onDone }: {
   product: EarnProduct;
   available: string;
-  canSubscribe: boolean;
+  price: number;
+  signedIn: boolean;
   onSubscribe: (productId: string, amount: string) => Promise<void>;
+  onDone: (n: Notice) => void;
 }) {
   const [amount, setAmount] = useState("");
-  const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const a = toNum(amount);
+  const d = dp(product.asset);
+  const fixed = product.kind === "fixed";
+  const days = fixed ? product.termDays : 1;
+  const est = (a * toNum(product.apr) * days) / 365;
+  const term = termLabel(product.kind, product.termDays);
+  const maturity = Date.now() / 1000 + product.termDays * DAY;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    setMsg(null);
+    let msg = "";
+    if (a <= 0) msg = `Enter an amount in ${product.asset}.`;
+    else if (a < toNum(product.minAmount)) msg = `The minimum for this product is ${trimDecimal(product.minAmount)} ${product.asset}.`;
+    else if (toNum(product.maxAmount) > 0 && a > toNum(product.maxAmount)) msg = `The maximum for this product is ${trimDecimal(product.maxAmount)} ${product.asset}.`;
+    else if (a > toNum(available)) msg = `You have ${fmt(available, d)} ${product.asset} available. Lower the amount or deposit more.`;
+    setError(msg);
+    if (msg) return;
     setBusy(true);
     try {
-      await onSubscribe(product.id, amount || "0");
-      setMsg({ kind: "ok", text: `Subscribed ${trimDecimal(amount)} ${product.asset} — now earning.` });
+      await onSubscribe(product.id, amount);
+      onDone({
+        ok: true,
+        title: "Subscribed",
+        text: `${trimDecimal(amount)} ${product.asset} is earning ${aprPct(product.apr)} APR${fixed ? ` until ${fmtDate(maturity)}.` : ". Redeem anytime."}`,
+      });
       setAmount("");
     } catch (err) {
-      setMsg({ kind: "err", text: err instanceof ApiError ? err.message : "Subscription failed" });
+      setError(err instanceof ApiError ? err.message : "The exchange didn’t respond. Try again.");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="earn-card">
-      <div className="earn-card__head">
-        <span className="paircell__icon" aria-hidden>{product.asset[0]}</span>
-        <div>
-          <div className="earn-card__asset">{product.asset}</div>
-          <span className={`badge ${product.kind === "flexible" ? "badge--soft" : "badge--ok"}`}>
-            {termLabel(product)}
-          </span>
+    <aside className="split__side panel subscribe" aria-labelledby="subscribe-title">
+      <div className="subscribe__head">
+        <div className="subscribe__title">
+          <h3 id="subscribe-title"><span className="assetcell"><AssetIcon symbol={product.asset} />{product.asset} · {term}</span></h3>
+          <Badge>{fixed ? "Fixed term" : "Flexible"}</Badge>
         </div>
-        <div className="earn-card__apr">
-          <div className="earn-card__aprval up">{aprPct(product.apr)}</div>
-          <div className="muted small">APR</div>
-        </div>
+        <p className="subscribe__apr"><strong>{aprPct(product.apr)}</strong> APR</p>
       </div>
-
-      <form className="form" onSubmit={submit}>
-        <label className="field">
-          <span className="field__label">Amount</span>
-          <span className="field__input">
-            <input
-              inputMode="decimal"
-              placeholder="0.00"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              disabled={!canSubscribe}
-            />
-            <span className="field__suffix">{product.asset}</span>
-          </span>
-        </label>
-        <div className="form__row muted small">
-          <span>Available</span>
-          <button
-            type="button"
-            className="linklike"
-            onClick={() => setAmount(trimDecimal(available))}
-            disabled={!canSubscribe}
-          >
-            {fmt(available, 6)} {product.asset}
-          </button>
-        </div>
-        <div className="form__row muted small">
-          <span>Minimum</span>
-          <span>{trimDecimal(product.minAmount)} {product.asset}</span>
-        </div>
-        <button className="btn btn--primary btn--block" disabled={!canSubscribe || busy}>
-          {busy ? "Subscribing…" : "Subscribe"}
-        </button>
-        {msg && (
-          <div className={`formmsg ${msg.kind === "ok" ? "formmsg--ok" : "formmsg--err"}`} role={msg.kind === "ok" ? "status" : "alert"}>
-            {msg.text}
+      <form className="form" onSubmit={submit} noValidate>
+        <Field label={`Amount (${product.asset})`} error={error} help={a > 0 && price > 0 ? `≈ ${fmtUsd(a * price)}` : undefined}>
+          <Input
+            inputMode="decimal" autoComplete="off" placeholder="0.00" value={amount} disabled={!signedIn}
+            onChange={(e) => { setAmount(e.target.value); setError(""); }}
+          />
+        </Field>
+        {signedIn && (
+          <div className="form__row">
+            <span>Available <strong>{fmt(available, d)} {product.asset}</strong></span>
+            <Button variant="ghost" size="sm" onClick={() => { setAmount(trimDecimal(available)); setError(""); }}>Use max</Button>
           </div>
         )}
+        <dl className="summary summary--ruled">
+          <div><dt>Minimum</dt><dd>{trimDecimal(product.minAmount)} {product.asset}</dd></div>
+          <div><dt>{fixed ? "Matures" : "Redeem"}</dt><dd>{fixed ? fmtDate(maturity) : "Anytime"}</dd></div>
+          <div className="summary__total">
+            <dt>{fixed ? "Interest at maturity" : "Interest per day"}</dt>
+            <dd>{a > 0 ? `+${fmt(est, d + 2)} ${product.asset}` : "—"}</dd>
+          </div>
+        </dl>
+        {signedIn ? (
+          <Button variant="primary" size="lg" type="submit" className="btn-block" disabled={busy}>
+            {busy ? "Subscribing…" : `Subscribe ${a > 0 ? `${trimDecimal(amount)} ` : ""}${product.asset}`}
+          </Button>
+        ) : (
+          <Link className={buttonClass("primary", "lg", "btn-block")} to="/login">Sign in to subscribe</Link>
+        )}
+        <p className="form__note">
+          {fixed ? `Locked for ${product.termDays} days. Fixed terms can’t be redeemed early.` : "Redeem anytime. Interest stops the moment you redeem."}
+        </p>
       </form>
-    </div>
+    </aside>
   );
 }

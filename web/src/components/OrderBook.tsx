@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { api } from "../api/client";
 import type { Depth, DepthLevel, Market } from "../api/types";
 import { useChannel } from "../hooks/useStream";
-import { fmt, toNum } from "../utils/format";
+import { fmt, stepDecimals, toNum } from "../utils/format";
+import { Direction, Panel } from "./common";
 
-const ROWS = 13;
+const ROWS = 10;
 
 interface Row {
   price: string;
@@ -20,8 +21,11 @@ function build(levels: DepthLevel[]): Row[] {
   });
 }
 
-export function OrderBook({ market, onPickPrice, fetchDepth }: {
+export function OrderBook({ market, last, lastUp, onPickPrice, fetchDepth }: {
   market: Market;
+  /** Last traded price, shown between the asks and bids. */
+  last: string;
+  lastUp: boolean;
   onPickPrice: (p: string) => void;
   fetchDepth?: (symbol: string, limit: number) => Promise<Depth>;
 }) {
@@ -40,52 +44,48 @@ export function OrderBook({ market, onPickPrice, fetchDepth }: {
   const bids = useMemo(() => build(depth.bids), [depth.bids]);
   const maxCum = Math.max(asks.at(-1)?.cum ?? 0, bids.at(-1)?.cum ?? 0, 1);
 
+  const pd = stepDecimals(market.priceTick);
+  const qd = stepDecimals(market.qtyStep);
   const bestBid = toNum(bids[0]?.price);
   const bestAsk = toNum(asks[0]?.price);
   const spread = bestBid && bestAsk ? bestAsk - bestBid : 0;
   const spreadPct = bestBid ? (spread / bestBid) * 100 : 0;
+  const rows = { "--rows": ROWS } as CSSProperties;
+
+  function row(r: Row, kind: "ask" | "bid") {
+    return (
+      <button
+        type="button"
+        className="book__row"
+        key={`${kind}${r.price}`}
+        onClick={() => onPickPrice(r.price)}
+        aria-label={`Use ${kind} price ${fmt(r.price, pd)}`}
+      >
+        <span className="book__bar" style={{ inlineSize: `${(r.cum / maxCum) * 100}%` }} />
+        <span className={`book__price ${kind === "ask" ? "down" : "up"}`}>{fmt(r.price, pd)}</span>
+        <span className="r">{fmt(r.qty, qd)}</span>
+        <span className="r muted">{fmt(r.cum, qd)}</span>
+      </button>
+    );
+  }
 
   return (
-    <section className="panel panel--book" aria-label="Order book">
-      <header className="panel__head">
-        <h2>Order Book</h2>
-      </header>
-      <div className="book">
-        <div className="book__cols muted">
-          <span>Price ({market.quote})</span>
-          <span className="r">Amount ({market.base})</span>
-          <span className="r">Total</span>
-        </div>
-
-        <div className="book__side book__side--asks scroll">
-          {[...asks].reverse().map((r) => (
-            <button className="book__row" key={`a${r.price}`} onClick={() => onPickPrice(r.price)} aria-label={`Use ask price ${fmt(r.price, 2)}`}>
-              <span className="book__bar book__bar--ask" style={{ width: `${(r.cum / maxCum) * 100}%` }} />
-              <span className="down">{fmt(r.price, 2)}</span>
-              <span className="r">{fmt(r.qty, 5)}</span>
-              <span className="r muted">{fmt(r.cum, 4)}</span>
-            </button>
-          ))}
-          {asks.length === 0 && <div className="empty">—</div>}
-        </div>
-
-        <div className="book__spread">
-          <span className="book__spread-val">{spread ? fmt(spread, 2) : "—"}</span>
-          <span className="muted">Spread {spread ? `${spreadPct.toFixed(3)}%` : ""}</span>
-        </div>
-
-        <div className="book__side book__side--bids scroll">
-          {bids.map((r) => (
-            <button className="book__row" key={`b${r.price}`} onClick={() => onPickPrice(r.price)} aria-label={`Use bid price ${fmt(r.price, 2)}`}>
-              <span className="book__bar book__bar--bid" style={{ width: `${(r.cum / maxCum) * 100}%` }} />
-              <span className="up">{fmt(r.price, 2)}</span>
-              <span className="r">{fmt(r.qty, 5)}</span>
-              <span className="r muted">{fmt(r.cum, 4)}</span>
-            </button>
-          ))}
-          {bids.length === 0 && <div className="empty">—</div>}
-        </div>
+    <Panel id="book" title="Order book" aside={<span className="panel__hint">Select a price to use it</span>} className="book">
+      <div className="book__cols" aria-hidden="true">
+        <span>Price ({market.quote})</span>
+        <span className="r">Amount ({market.base})</span>
+        <span className="r">Total ({market.base})</span>
       </div>
-    </section>
+      <div className="book__side book__side--asks" style={rows}>
+        {[...asks].reverse().map((r) => row(r, "ask"))}
+      </div>
+      <div className="book__mid">
+        <Direction up={lastUp} className="book__last">{toNum(last) > 0 ? fmt(last, pd) : "—"}</Direction>
+        <span className="book__spread">Spread {spread ? `${fmt(spread, pd)} (${spreadPct.toFixed(3)}%)` : "—"}</span>
+      </div>
+      <div className="book__side" style={rows}>
+        {bids.map((r) => row(r, "bid"))}
+      </div>
+    </Panel>
   );
 }
