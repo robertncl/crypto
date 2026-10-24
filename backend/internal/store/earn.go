@@ -156,7 +156,12 @@ func (s *Store) SubscribeEarn(txnID string, createdAt int64, postings []Posting,
 // affects zero rows and the whole transaction (including its payout postings)
 // rolls back with ErrNotActive. This closes the double-redeem race that would
 // otherwise mint principal + interest from the reserved Earn pool account.
-func (s *Store) RedeemEarn(txnID string, createdAt int64, postings []Posting, pos *models.EarnPosition) error {
+//
+// The UPDATE is also guarded by `last_accrual_at=prevAccrualAt` — the value the
+// payout's final interest stub was computed from. If the accrual scheduler
+// credited interest in between, the guard fails (ErrNotActive) instead of
+// paying that interval a second time; the caller re-reads and retries.
+func (s *Store) RedeemEarn(txnID string, createdAt int64, postings []Posting, pos *models.EarnPosition, prevAccrualAt int64) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -167,8 +172,8 @@ func (s *Store) RedeemEarn(txnID string, createdAt int64, postings []Posting, po
 	}
 	res, err := tx.Exec(
 		`UPDATE earn_positions SET accrued_total=?, status=?, last_accrual_at=?, redeemed_at=?
-		 WHERE id=? AND status='active'`,
-		pos.AccruedTotal.Raw(), pos.Status, pos.LastAccrualAt, pos.RedeemedAt, pos.ID)
+		 WHERE id=? AND status='active' AND last_accrual_at=?`,
+		pos.AccruedTotal.Raw(), pos.Status, pos.LastAccrualAt, pos.RedeemedAt, pos.ID, prevAccrualAt)
 	if err != nil {
 		return err
 	}
@@ -186,8 +191,9 @@ func (s *Store) RedeemEarn(txnID string, createdAt int64, postings []Posting, po
 // position's accrual bookkeeping. Like RedeemEarn, the UPDATE is guarded by
 // `status='active'`: if a redeem committed first, this affects zero rows and the
 // interest postings roll back with ErrNotActive, so a redeemed position can
-// never be resurrected or paid interest.
-func (s *Store) AccrueEarn(txnID string, createdAt int64, postings []Posting, pos *models.EarnPosition) error {
+// never be resurrected or paid interest. The `last_accrual_at=prevAccrualAt`
+// guard likewise stops the same interval from being credited twice.
+func (s *Store) AccrueEarn(txnID string, createdAt int64, postings []Posting, pos *models.EarnPosition, prevAccrualAt int64) error {
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -198,8 +204,8 @@ func (s *Store) AccrueEarn(txnID string, createdAt int64, postings []Posting, po
 	}
 	res, err := tx.Exec(
 		`UPDATE earn_positions SET accrued_total=?, last_accrual_at=?
-		 WHERE id=? AND status='active'`,
-		pos.AccruedTotal.Raw(), pos.LastAccrualAt, pos.ID)
+		 WHERE id=? AND status='active' AND last_accrual_at=?`,
+		pos.AccruedTotal.Raw(), pos.LastAccrualAt, pos.ID, prevAccrualAt)
 	if err != nil {
 		return err
 	}
