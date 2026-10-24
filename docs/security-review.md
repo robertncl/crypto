@@ -70,7 +70,37 @@ simulated-deposit behavior, but most must be fixed before any real deployment.
 | F6 | ✅ Fixed | **Security-headers** middleware: strict **CSP**, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `HSTS`. Verified present; CSP confirmed not to break the WebSocket (`connect-src 'self'`). |
 | F8 | ✅ Fixed | 500 path now **logs internally and returns a generic message**; wallet handlers routed through the sanitizing mapper. |
 | F1 | ⚠️ By design (demo) | Left intentionally for the simulated-custody demo; flagged for removal before production. |
-| F3, F7, F9–F12 | ⬜ Open | Product decisions (MFA, real KYC, session revocation, WS-ticket, etc.) — not changed in this pass. |
+| F3 | 🟡 Partial | Password policy is now 8–72 bytes (72 is bcrypt's limit; longer input used to 500). MFA and real KYC remain open. |
+| F9 | 🟡 Partial | WS `CheckOrigin` now admits only same-origin and configured SPA origins; REST no longer accepts `?token=`. The WS handshake still carries the JWT in its URL (a single-use ticket is still open). |
+| F11 | ✅ Fixed | `num.Dec` arithmetic saturates instead of wrapping, and order sizing rejects overflow (see F14). |
+| F7, F10, F12 | ⬜ Open | Product decisions (session revocation, registration enumeration, SIEM logging). |
+
+### Hardening pass 2 (2026-10)
+
+| ID | Severity | Status | Finding & fix |
+|----|----------|--------|---------------|
+| F13 | **Critical** | ✅ Fixed | **Bot account takeover.** The market-maker accounts (`liquidity-maker@` / `liquidity-taker@exchange.local`) had password `"bot-" + email`, which can be read from the public source. They are KYC-verified and funded with 100M of each asset. Verified live on `master`: logging in as the bot and withdrawing 500 BTC succeeded. **Fix:** each boot sets a random, never-disclosed password on the bot accounts, which also rotates the old one on existing databases, and login refuses the `bot` role outright. Token parsing also rejects the `bot` role, for REST and WebSocket alike, so bot sessions issued before the fix stop working immediately rather than lasting out their 72h TTL. |
+| F14 | High | ✅ Fixed | **Order-notional overflow corrupts other users' orders.** `price.Mul(qty)` wrapped past `int64`: a 1.8×10^11 USDT bid passed validation while locking only ~263 USDT. Its fill then failed to commit, but `executeFill` had already mutated the maker in memory. Verified: the attacker zeroed the top-of-book level and **stranded the maker's locked BTC** (still locked after the maker cancelled). The attacker's own order was left as a ghost holding its funds. **Fix:** overflow-checked notional validation (spot and perp). Fills snapshot in-memory state and roll it back if the commit fails. A failed match closes the taker and releases its reservation instead of leaving it open. |
+| F15 | Medium | ✅ Fixed | **Login timing reveals registered emails.** An unknown email returned without running bcrypt, so it answered far faster than a wrong password. Unknown emails now run a dummy bcrypt compare. |
+| F16 | Low | ✅ Fixed | **Edge hardening.** JWTs must be HS256 and carry `exp`. API responses send `Cache-Control: no-store`. `/ws` handshakes are rate-limited per IP. The server sets `ReadTimeout`/`WriteTimeout`/`IdleTimeout`/`MaxHeaderBytes` (WebSockets clear these on upgrade; verified live past 30s). Vite dev origins are allowed for CORS only when `DEV=true`. |
+
+### Hardening pass 3 (2026-10-24)
+
+| ID | Severity | Status | Finding & fix |
+|----|----------|--------|---------------|
+| F17 | Low | ✅ Fixed | **Earn interest overflow.** `interestFor` chained `principal × apr × elapsedSeconds` in `int64` before dividing, which wraps once the product passes ~9.2×10^10. That takes a large principal and/or a long gap since the last accrual: about 6.5M USDT at 16.5% after a day without accrual (e.g. downtime), or 1M USDT at 8% over a year. At the normal 60s cadence it takes ~19B USDT, which the unlimited demo deposit (F1) makes reachable. The wrapped interest is garbage: 1M USDT at 8% for a year came out as −1,891.94. If negative, accrual skips forever and redeem pays *less* than the principal; if positive, the pool overpays. **Fix:** the product is formed exactly in `big.Int` before a single division. |
+| F18 | Low | ✅ Fixed | **Redeem/accrual race double-pays interest.** Redeem computed its final interest from the `last_accrual_at` it had read. If the scheduler credited that interval before the redeem committed, the interval was paid twice, because the guard only checked `status='active'`. **Fix:** `RedeemEarn` and `AccrueEarn` also require `last_accrual_at` to match the value the interest was computed from; a redeem that loses the race re-reads and retries. |
+| F19 | Low | ✅ Fixed | **Unbounded free-text fields.** Withdrawal addresses and registration emails were limited only by the 64 KiB body cap and stored verbatim. Addresses are now trimmed and must be 1–128 ASCII letters/digits; emails are capped at 254 bytes (RFC 5321). |
+| F20 | Low | ✅ Fixed | **CI hardening.** `docker-trivy.yml` interpolated `${{ steps.meta.outputs.tags }}` directly into a shell line. metadata-action sanitizes tags, but it is the expression-injection pattern, so the value now arrives via `env`. `govulncheck` is pinned (`v1.9.0`) instead of `@latest`. |
+
+Also from the pass-2 review: the login timing equalizer now uses a constant bcrypt hash (no runtime generation, so it can never be empty and the first miss isn't slower), and an order closed by a mid-match settlement failure is logged at `ERROR` with its filled amount.
+
+Informational: `govulncheck` reports GO-2026-5932 (`golang.org/x/crypto/openpgp` is unmaintained). Nebula does not import that package and no fixed version exists.
+
+Regression tests: `engine/engine_safety_test.go`, `derivatives/engine_safety_test.go`,
+`num/overflow_test.go`, `api/hardening_test.go`, `auth/parse_hardening_test.go`,
+`earn/interest_overflow_test.go`, `store/earn_test.go` (`TestRedeemEarnRejectsStaleAccrual`),
+`wallet/wallet_test.go` (`TestValidAddress`).
 
 > **Prod note:** the in-app limiter keys by remote IP (`httprate.LimitByIP`). Behind
 > a load balancer, switch to `httprate.KeyByRealIP` (trusting `X-Forwarded-For`

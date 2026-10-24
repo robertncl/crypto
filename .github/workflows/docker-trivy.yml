@@ -53,7 +53,11 @@ jobs:
 
       - name: Select an image ref to scan
         id: scan
-        run: echo "ref=$(printf '%s\n' '${{ steps.meta.outputs.tags }}' | head -n1)" >> "$GITHUB_OUTPUT"
+        # Pass the tags via env, not ${{ }} interpolation into the script, so a
+        # crafted value can never be parsed as shell.
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: echo "ref=$(printf '%s\n' "$TAGS" | head -n1)" >> "$GITHUB_OUTPUT"
 
       - name: Trivy scan (SARIF for code scanning)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0

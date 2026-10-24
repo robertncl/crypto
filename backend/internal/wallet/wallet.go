@@ -127,7 +127,8 @@ func (s *Service) Withdraw(userID int64, assetSymbol, address string, amount num
 	if amount.Sign() <= 0 {
 		return nil, ErrInvalidAmount
 	}
-	if strings.TrimSpace(address) == "" {
+	address = strings.TrimSpace(address) // tolerate copy-paste whitespace
+	if !validAddress(address) {
 		return nil, ErrInvalidAddress
 	}
 	if amount.Lt(a.MinWithdraw) {
@@ -188,6 +189,27 @@ func (s *Service) publishBalances(userID int64) {
 		return
 	}
 	s.hub.Publish("balances:"+strconv.FormatInt(userID, 10), bals)
+}
+
+// maxAddressLen bounds a destination address. Real addresses on the supported
+// networks are at most ~90 characters (bech32); this leaves headroom while
+// stopping a request from storing tens of kilobytes per withdrawal row.
+const maxAddressLen = 128
+
+// validAddress accepts a non-empty, bounded string of ASCII letters and digits,
+// the alphabet of every supported address format (hex, base58, bech32). It is
+// a shape check, not per-network checksum validation.
+func validAddress(a string) bool {
+	if a == "" || len(a) > maxAddressLen {
+		return false
+	}
+	for i := 0; i < len(a); i++ {
+		c := a[i]
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z') {
+			return false
+		}
+	}
+	return true
 }
 
 // ---------- fake address / txid generation ----------

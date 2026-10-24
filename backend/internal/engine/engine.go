@@ -8,6 +8,7 @@ package engine
 import (
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"time"
 
@@ -125,13 +126,18 @@ func (e *Engine) place(o *models.Order) (*models.Order, error) {
 	}
 
 	affected := map[int64]bool{o.UserID: true}
-	if err := e.match(taker, now, affected); err != nil {
-		// A settlement error mid-match is unexpected; surface it.
-		return nil, err
+	matchErr := e.match(taker, now, affected)
+	if matchErr != nil {
+		// A settlement failure mid-match is unexpected. The failed fill was
+		// rolled back in memory; fills committed before it stand. Never rest the
+		// remainder (it may cross the book) — close the order and release what
+		// it still has reserved so no funds are stranded.
+		log.Printf("ERROR engine %s: order %s closed after settlement failure (filled %s): %v",
+			e.mkt.Symbol, o.ID, o.Filled, matchErr)
 	}
 
 	// Resting vs terminal handling.
-	rest := o.Type == models.TypeLimit && taker.remaining.Sign() > 0
+	rest := matchErr == nil && o.Type == models.TypeLimit && taker.remaining.Sign() > 0
 	if rest {
 		if o.Filled.Sign() > 0 {
 			o.Status = models.StatusPartial
@@ -151,7 +157,7 @@ func (e *Engine) place(o *models.Order) (*models.Order, error) {
 			}})
 			taker.locked = num.Zero
 		}
-		if o.Filled.Sign() > 0 {
+		if o.Filled.Sign() > 0 && matchErr == nil {
 			o.Status = models.StatusFilled
 		} else {
 			o.Status = models.StatusCanceled
@@ -163,6 +169,9 @@ func (e *Engine) place(o *models.Order) (*models.Order, error) {
 	e.publishOrder(o)
 	e.publishBalances(affected)
 	e.publishDepth()
+	if matchErr != nil {
+		return nil, matchErr
+	}
 	return o, nil
 }
 
@@ -248,6 +257,11 @@ func (e *Engine) executeFill(taker, maker *restingOrder, matchQty, price num.Dec
 	} else {
 		buyer, seller = maker, taker
 	}
+	// The in-memory orders are updated before the commit (the persisted rows
+	// are written from them), so snapshot them to roll back if it fails —
+	// otherwise the book would drift from the database and a maker's locked
+	// funds could be stranded.
+	buyerSnap, sellerSnap := buyer.snapshot(), seller.snapshot()
 
 	buyerRate := e.feeRate(buyer == maker)
 	sellerRate := e.feeRate(seller == maker)
@@ -297,6 +311,8 @@ func (e *Engine) executeFill(taker, maker *restingOrder, matchQty, price num.Dec
 	}
 	txnID := "fill:" + uuid.NewString()
 	if err := e.st.CommitFill(txnID, now, postings, trade, buyer.mo, seller.mo); err != nil {
+		buyer.restore(buyerSnap)
+		seller.restore(sellerSnap)
 		return fmt.Errorf("commit fill: %w", err)
 	}
 
@@ -391,7 +407,10 @@ func (e *Engine) validateAndLockAmount(o *models.Order) (asset string, amount nu
 		if !isMultiple(o.Quantity, e.mkt.QtyStep) {
 			return "", num.Zero, fmt.Errorf("%w: quantity must be a multiple of %s", ErrBadOrder, e.mkt.QtyStep)
 		}
-		notional := o.Price.Mul(o.Quantity)
+		notional, ok := o.Price.MulChecked(o.Quantity)
+		if !ok {
+			return "", num.Zero, fmt.Errorf("%w: order value too large", ErrBadOrder)
+		}
 		if notional.Lt(e.mkt.MinNotional) {
 			return "", num.Zero, fmt.Errorf("%w: order value below minimum %s", ErrBadOrder, e.mkt.MinNotional)
 		}

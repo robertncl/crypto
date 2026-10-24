@@ -239,3 +239,16 @@ func TestRandBase58(t *testing.T) {
 		}
 	}
 }
+
+func TestValidAddress(t *testing.T) {
+	for _, a := range []string{genAddress("Bitcoin"), genAddress("ERC20"), genAddress("Solana"), genAddress("TRC20")} {
+		if !validAddress(a) {
+			t.Errorf("generated address %q rejected", a)
+		}
+	}
+	for _, a := range []string{"", "   ", "0xabc def", "0xabc\n", "<script>", strings.Repeat("a", maxAddressLen+1)} {
+		if validAddress(a) {
+			t.Errorf("address %q accepted", a)
+		}
+	}
+}

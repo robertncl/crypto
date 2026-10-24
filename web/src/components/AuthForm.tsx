@@ -35,7 +35,11 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
     setFailure("");
     const next: typeof errors = {};
     if (!EMAIL.test(email.trim())) next.email = isRegister ? "Enter an email address, like you@example.com." : "Enter the email you signed up with, like you@example.com.";
-    if (isRegister ? password.length < 6 : !password) next.password = isRegister ? "Use at least 6 characters." : "Enter your password.";
+    // Server policy: 8–72 bytes (bcrypt's limit), counted as UTF-8.
+    const pwBytes = new TextEncoder().encode(password).length;
+    if (!isRegister && !password) next.password = "Enter your password.";
+    else if (isRegister && pwBytes < 8) next.password = "Use at least 8 characters.";
+    else if (isRegister && pwBytes > 72) next.password = "Use 72 characters or fewer.";
     setErrors(next);
     if (next.email || next.password) return;
 
@@ -87,7 +91,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
               onChange={(e) => { setEmail(e.target.value); setErrors((x) => ({ ...x, email: undefined })); }}
             />
           </Field>
-          <Field label="Password" error={errors.password} help={isRegister ? "At least 6 characters." : undefined}>
+          <Field label="Password" error={errors.password} help={isRegister ? "8 to 72 characters." : undefined}>
             <Input
               type="password" autoComplete={isRegister ? "new-password" : "current-password"} value={password}
               onChange={(e) => { setPassword(e.target.value); setErrors((x) => ({ ...x, password: undefined })); }}

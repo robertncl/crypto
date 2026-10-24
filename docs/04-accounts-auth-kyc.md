@@ -92,9 +92,10 @@ are wrapped in the middleware in `internal/api/server.go`.
 > **Security note for newcomers:** because a JWT is self-validating, you cannot
 > easily *revoke* one before it expires. That's why Nebula's tokens are
 > short-ish-lived (`JWT_TTL_HOURS`, default 72h) and the signing secret
-> (`JWT_SECRET`) must be strong and private in production. The WebSocket handshake
-> accepts the same token via a query parameter, since browsers can't set custom
-> headers on a WebSocket.
+> (`JWT_SECRET`) must be strong and private in production. Only the WebSocket
+> handshake accepts the token as a query parameter, because browsers can't set
+> custom headers on a WebSocket. REST endpoints require the `Authorization`
+> header, since URLs end up in logs and browser history.
 
 ---
 

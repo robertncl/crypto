@@ -64,13 +64,13 @@ func TestRedeemEarnIsIdempotent(t *testing.T) {
 	pos.Status = models.EarnRedeemed
 	pos.RedeemedAt = 200
 	pos.LastAccrualAt = 200
-	if err := st.RedeemEarn("earn_redeem:"+pos.ID, 200, redeemPostings(pos, "1000"), pos); err != nil {
+	if err := st.RedeemEarn("earn_redeem:"+pos.ID, 200, redeemPostings(pos, "1000"), pos, 100); err != nil {
 		t.Fatalf("first redeem failed: %v", err)
 	}
 
 	// Second redeem of the same position: must be rejected with ErrNotActive and
 	// apply no payout.
-	err := st.RedeemEarn("earn_redeem2:"+pos.ID, 201, redeemPostings(pos, "1000"), pos)
+	err := st.RedeemEarn("earn_redeem2:"+pos.ID, 201, redeemPostings(pos, "1000"), pos, 100)
 	if !errors.Is(err, store.ErrNotActive) {
 		t.Fatalf("second redeem err = %v, want ErrNotActive", err)
 	}
@@ -99,7 +99,7 @@ func TestConcurrentRedeemEarnPaysOnce(t *testing.T) {
 			p.Status = models.EarnRedeemed
 			p.RedeemedAt = 300
 			p.LastAccrualAt = 300
-			results <- st.RedeemEarn("earn_redeem:"+p.ID, 300, redeemPostings(&p, "5000"), &p)
+			results <- st.RedeemEarn("earn_redeem:"+p.ID, 300, redeemPostings(&p, "5000"), &p, 100)
 		}()
 	}
 	close(start)
@@ -138,7 +138,7 @@ func TestAccrueEarnSkipsRedeemedPosition(t *testing.T) {
 	pos.Status = models.EarnRedeemed
 	pos.RedeemedAt = 400
 	pos.LastAccrualAt = 400
-	if err := st.RedeemEarn("earn_redeem:"+pos.ID, 400, redeemPostings(pos, "1000"), pos); err != nil {
+	if err := st.RedeemEarn("earn_redeem:"+pos.ID, 400, redeemPostings(pos, "1000"), pos, 100); err != nil {
 		t.Fatalf("redeem failed: %v", err)
 	}
 
@@ -148,7 +148,7 @@ func TestAccrueEarnSkipsRedeemedPosition(t *testing.T) {
 		{UserID: store.EarnPoolID, Asset: "USDT", DeltaAvailable: num.MustParse("1").Neg(), Reason: "earn_interest", Ref: pos.ID},
 		{UserID: user, Asset: "USDT", DeltaAvailable: num.MustParse("1"), Reason: "earn_interest", Ref: pos.ID},
 	}
-	if err := st.AccrueEarn("earn_accrue:"+pos.ID, 460, postings, accrue); !errors.Is(err, store.ErrNotActive) {
+	if err := st.AccrueEarn("earn_accrue:"+pos.ID, 460, postings, accrue, 100); !errors.Is(err, store.ErrNotActive) {
 		t.Fatalf("accrue on redeemed position err = %v, want ErrNotActive", err)
 	}
 
@@ -229,7 +229,7 @@ func TestListEarnPositionsActiveOnly(t *testing.T) {
 	redeemed.Status = models.EarnRedeemed
 	redeemed.RedeemedAt = 500
 	redeemed.LastAccrualAt = 500
-	if err := st.RedeemEarn("earn_redeem:"+redeemed.ID, 500, redeemPostings(redeemed, "500"), redeemed); err != nil {
+	if err := st.RedeemEarn("earn_redeem:"+redeemed.ID, 500, redeemPostings(redeemed, "500"), redeemed, 100); err != nil {
 		t.Fatalf("redeem: %v", err)
 	}
 
@@ -268,7 +268,7 @@ func TestListActiveEarnPositionsAcrossUsers(t *testing.T) {
 	closed.Status = models.EarnRedeemed
 	closed.RedeemedAt = 600
 	closed.LastAccrualAt = 600
-	if err := st.RedeemEarn("earn_redeem:"+closed.ID, 600, redeemPostings(closed, "3000"), closed); err != nil {
+	if err := st.RedeemEarn("earn_redeem:"+closed.ID, 600, redeemPostings(closed, "3000"), closed, 100); err != nil {
 		t.Fatalf("redeem: %v", err)
 	}
 
@@ -294,5 +294,39 @@ func TestGetEarnPositionNotFound(t *testing.T) {
 	st := newStore(t)
 	if _, err := st.GetEarnPosition("nope"); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("unknown position err = %v, want ErrNotFound", err)
+	}
+}
+
+// TestRedeemEarnRejectsStaleAccrual: a redeem whose final interest stub was
+// computed from a last_accrual_at that the scheduler has since advanced must
+// not commit — otherwise the accrued interval is paid twice from the pool.
+func TestRedeemEarnRejectsStaleAccrual(t *testing.T) {
+	st := newStore(t)
+	const user = int64(7)
+	pos := seedActiveEarn(t, st, user, "pos-stale", "1000")
+
+	// Scheduler credits interest for [100, 160].
+	accrued := *pos
+	accrued.AccruedTotal = num.MustParse("1")
+	accrued.LastAccrualAt = 160
+	if err := st.AccrueEarn("earn_accrue:stale", 160, []store.Posting{
+		{UserID: store.EarnPoolID, Asset: "USDT", DeltaAvailable: num.MustParse("1").Neg(), Reason: "earn_interest", Ref: pos.ID},
+		{UserID: user, Asset: "USDT", DeltaAvailable: num.MustParse("1"), Reason: "earn_interest", Ref: pos.ID},
+	}, &accrued, 100); err != nil {
+		t.Fatal(err)
+	}
+
+	// A redeem that read last_accrual_at=100 (stale) re-pays [100, 160]: refuse.
+	stale := *pos
+	stale.Status, stale.LastAccrualAt, stale.RedeemedAt = models.EarnRedeemed, 200, 200
+	if err := st.RedeemEarn("earn_redeem:stale", 200, redeemPostings(&stale, "1002"), &stale, 100); !errors.Is(err, store.ErrNotActive) {
+		t.Fatalf("stale redeem err = %v, want ErrNotActive", err)
+	}
+	if b, _ := st.GetBalance(user, "USDT"); b.Available.String() != "1" {
+		t.Fatalf("user balance after refused redeem = %s, want 1 (interest only)", b.Available)
+	}
+	// Re-read value succeeds.
+	if err := st.RedeemEarn("earn_redeem:fresh", 200, redeemPostings(&stale, "1001"), &stale, 160); err != nil {
+		t.Fatalf("fresh redeem: %v", err)
 	}
 }

@@ -11,6 +11,7 @@ package earn
 import (
 	"context"
 	"errors"
+	"math/big"
 	"strconv"
 	"time"
 
@@ -155,6 +156,22 @@ func (s *Service) Subscribe(userID int64, productID string, amount num.Dec) (*mo
 // scheduler tick and returns the principal to the user's spendable balance.
 // Flexible positions redeem anytime; fixed positions only after maturity.
 func (s *Service) Redeem(userID int64, positionID string) (*models.EarnPosition, error) {
+	// A concurrent accrual can advance last_accrual_at between our read and our
+	// commit; the store then refuses the payout (ErrNotActive) rather than pay
+	// that interval twice. Re-read and retry a few times in that case.
+	for attempt := 0; ; attempt++ {
+		pos, err := s.redeemOnce(userID, positionID)
+		if errors.Is(err, store.ErrNotActive) && attempt < 3 {
+			continue
+		}
+		if errors.Is(err, store.ErrNotActive) {
+			return nil, ErrPositionClosed
+		}
+		return pos, err
+	}
+}
+
+func (s *Service) redeemOnce(userID int64, positionID string) (*models.EarnPosition, error) {
 	pos, err := s.st.GetEarnPosition(positionID)
 	if err != nil {
 		return nil, err
@@ -172,7 +189,8 @@ func (s *Service) Redeem(userID int64, positionID string) (*models.EarnPosition,
 
 	// Pay the final stub of interest (capped at maturity for fixed) and return
 	// principal — both from the pool — in one atomic, ledgered transaction.
-	interest := interestFor(pos.Principal, pos.APR, pos.LastAccrualAt, effectiveTime(pos, now))
+	prevAccrualAt := pos.LastAccrualAt
+	interest := interestFor(pos.Principal, pos.APR, prevAccrualAt, effectiveTime(pos, now))
 	payout := pos.Principal.Add(interest)
 	postings := []store.Posting{
 		{UserID: store.EarnPoolID, Asset: pos.Asset, DeltaAvailable: payout.Neg(), Reason: "earn_redeem", Ref: pos.ID},
@@ -182,12 +200,9 @@ func (s *Service) Redeem(userID int64, positionID string) (*models.EarnPosition,
 	pos.Status = models.EarnRedeemed
 	pos.LastAccrualAt = now
 	pos.RedeemedAt = now
-	if err := s.st.RedeemEarn("earn_redeem:"+pos.ID, now, postings, pos); err != nil {
-		// A concurrent redeem already closed this position: no payout happened,
-		// so surface it as already-closed rather than a server error.
-		if errors.Is(err, store.ErrNotActive) {
-			return nil, ErrPositionClosed
-		}
+	// ErrNotActive here means a concurrent redeem closed the position or an
+	// accrual moved it on; no payout happened either way. Redeem decides.
+	if err := s.st.RedeemEarn("earn_redeem:"+pos.ID, now, postings, pos, prevAccrualAt); err != nil {
 		return nil, err
 	}
 	s.publishBalances(userID)
@@ -231,12 +246,13 @@ func (s *Service) accrueAll() {
 			{UserID: store.EarnPoolID, Asset: pos.Asset, DeltaAvailable: interest.Neg(), Reason: "earn_interest", Ref: pos.ID},
 			{UserID: pos.UserID, Asset: pos.Asset, DeltaAvailable: interest, Reason: "earn_interest", Ref: pos.ID},
 		}
+		prevAccrualAt := pos.LastAccrualAt
 		pos.AccruedTotal = pos.AccruedTotal.Add(interest)
 		pos.LastAccrualAt = end
 		// AccrueEarn's guarded update skips (ErrNotActive) any position a
 		// concurrent redeem has already closed, so interest is never paid on — or
 		// able to resurrect — a redeemed position.
-		if err := s.st.AccrueEarn("earn_accrue:"+pos.ID+":"+strconv.FormatInt(end, 10), now, postings, pos); err != nil {
+		if err := s.st.AccrueEarn("earn_accrue:"+pos.ID+":"+strconv.FormatInt(end, 10), now, postings, pos, prevAccrualAt); err != nil {
 			continue
 		}
 		touched[pos.UserID] = true
@@ -259,12 +275,24 @@ func effectiveTime(pos *models.EarnPosition, now int64) int64 {
 // interestFor computes simple interest on principal at annual rate apr over
 // [from, to] seconds: principal * apr * (to-from) / secondsPerYear, truncated to
 // the fixed-point scale. Returns zero for non-positive intervals.
+//
+// The product principal*apr*elapsed is formed exactly in big.Int before the
+// single division. Chaining Dec multiplications overflowed int64 once that
+// product passed ~9.2e10 (e.g. ~6.5M USDT at 16.5% after a day without
+// accrual, or 1M USDT at 8% over a year), producing garbage — even negative —
+// interest. Off the hot path, so big.Int is fine.
 func interestFor(principal, apr num.Dec, from, to int64) num.Dec {
 	elapsed := to - from
-	if elapsed <= 0 {
+	if elapsed <= 0 || principal.Sign() <= 0 || apr.Sign() <= 0 {
 		return num.Zero
 	}
-	return principal.Mul(apr).Mul(num.FromInt(elapsed)).Div(num.FromInt(secondsPerYear))
+	v := new(big.Int).Mul(big.NewInt(principal.Raw()), big.NewInt(apr.Raw()))
+	v.Mul(v, big.NewInt(elapsed))
+	v.Quo(v, big.NewInt(num.Scale*secondsPerYear)) // one Scale from apr, plus the year
+	if !v.IsInt64() {
+		return num.MaxDec // unreachable for real rates; the pool's funds check rejects it
+	}
+	return num.FromRaw(v.Int64())
 }
 
 func (s *Service) publishBalances(userID int64) {

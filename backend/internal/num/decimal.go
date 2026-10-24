@@ -7,7 +7,9 @@ package num
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
+	"math/bits"
 	"strings"
 )
 
@@ -42,12 +44,49 @@ type Dec struct {
 // Zero is the additive identity.
 var Zero = Dec{}
 
+// MaxDec and MinDec bound the representable range. Arithmetic whose exact
+// result falls outside it saturates to these values instead of silently
+// wrapping around, so an oversized operand can never turn into a small (or
+// negative) amount. The range is symmetric so Neg never overflows.
+var (
+	MaxDec = Dec{i: math.MaxInt64}
+	MinDec = Dec{i: -math.MaxInt64}
+)
+
+// saturate returns the bound in the direction of an overflowed result.
+func saturate(negative bool) Dec {
+	if negative {
+		return MinDec
+	}
+	return MaxDec
+}
+
+// uabs returns |x| as a uint64 (well defined for math.MinInt64 too).
+func uabs(x int64) uint64 {
+	u := uint64(x)
+	if x < 0 {
+		u = -u
+	}
+	return u
+}
+
+// signed applies a sign to a magnitude, reporting false if it does not fit.
+func signed(mag uint64, negative bool) (int64, bool) {
+	if mag > math.MaxInt64 {
+		return 0, false
+	}
+	if negative {
+		return -int64(mag), true
+	}
+	return int64(mag), true
+}
+
 // FromRaw builds a Dec from an already-scaled integer (i.e. value * Scale). This
 // is the representation persisted in the database.
 func FromRaw(raw int64) Dec { return Dec{i: raw} }
 
-// FromInt builds a Dec from a whole number.
-func FromInt(n int64) Dec { return Dec{i: n * Scale} }
+// FromInt builds a Dec from a whole number (saturating if out of range).
+func FromInt(n int64) Dec { return Dec{i: n}.MulRaw(Scale) }
 
 // Raw returns the underlying scaled integer, suitable for storage.
 func (d Dec) Raw() int64 { return d.i }
@@ -70,11 +109,23 @@ func (d Dec) Sign() int {
 // Neg returns -d.
 func (d Dec) Neg() Dec { return Dec{i: -d.i} }
 
-// Add returns d + e.
-func (d Dec) Add(e Dec) Dec { return Dec{i: d.i + e.i} }
+// Add returns d + e, saturating at MaxDec/MinDec on overflow.
+func (d Dec) Add(e Dec) Dec {
+	s := d.i + e.i
+	if (s > d.i) != (e.i > 0) || s == math.MinInt64 {
+		return saturate(e.i < 0)
+	}
+	return Dec{i: s}
+}
 
-// Sub returns d - e.
-func (d Dec) Sub(e Dec) Dec { return Dec{i: d.i - e.i} }
+// Sub returns d - e, saturating at MaxDec/MinDec on overflow.
+func (d Dec) Sub(e Dec) Dec {
+	s := d.i - e.i
+	if (s < d.i) != (e.i > 0) || s == math.MinInt64 {
+		return saturate(e.i > 0)
+	}
+	return Dec{i: s}
+}
 
 // Cmp compares d and e, returning -1, 0 or +1.
 func (d Dec) Cmp(e Dec) int {
@@ -111,31 +162,67 @@ func Max(d, e Dec) Dec {
 	return e
 }
 
-// Mul returns d * e. The multiplication is performed with big.Int to avoid
-// overflow of the intermediate (scaled*scaled) product, then divided back down
-// by Scale with truncation toward zero.
+// Mul returns d * e, truncated toward zero. The full 128-bit product is
+// computed with math/bits (no allocation), so intermediates never overflow; a
+// result outside the representable range saturates to MaxDec/MinDec. Use
+// MulChecked where an out-of-range product must be rejected rather than capped.
 func (d Dec) Mul(e Dec) Dec {
-	a := big.NewInt(d.i)
-	a.Mul(a, big.NewInt(e.i))
-	a.Quo(a, bigScale) // truncated division
-	return Dec{i: a.Int64()}
+	v, ok := d.MulChecked(e)
+	if !ok {
+		return saturate((d.i < 0) != (e.i < 0))
+	}
+	return v
 }
 
-// Div returns d / e using big.Int intermediates, truncating toward zero. It
-// panics on division by zero; callers that take untrusted divisors should guard
-// with IsZero first.
+// MulChecked returns d * e and false if the result does not fit in a Dec.
+func (d Dec) MulChecked(e Dec) (Dec, bool) {
+	hi, lo := bits.Mul64(uabs(d.i), uabs(e.i))
+	if hi >= uint64(Scale) { // quotient would need more than 64 bits
+		return Zero, false
+	}
+	q, _ := bits.Div64(hi, lo, uint64(Scale))
+	v, ok := signed(q, (d.i < 0) != (e.i < 0))
+	if !ok || v == math.MinInt64 {
+		return Zero, false
+	}
+	return Dec{i: v}, true
+}
+
+// Div returns d / e, truncated toward zero, saturating to MaxDec/MinDec if the
+// quotient is out of range. It panics on division by zero; callers that take
+// untrusted divisors should guard with IsZero first.
 func (d Dec) Div(e Dec) Dec {
 	if e.i == 0 {
 		panic(ErrDivZero)
 	}
-	a := big.NewInt(d.i)
-	a.Mul(a, bigScale)
-	a.Quo(a, big.NewInt(e.i))
-	return Dec{i: a.Int64()}
+	neg := (d.i < 0) != (e.i < 0)
+	divisor := uabs(e.i)
+	hi, lo := bits.Mul64(uabs(d.i), uint64(Scale))
+	if hi >= divisor {
+		return saturate(neg)
+	}
+	q, _ := bits.Div64(hi, lo, divisor)
+	v, ok := signed(q, neg)
+	if !ok || v == math.MinInt64 {
+		return saturate(neg)
+	}
+	return Dec{i: v}
 }
 
-// MulRaw multiplies by a plain integer (no scaling involved).
-func (d Dec) MulRaw(n int64) Dec { return Dec{i: d.i * n} }
+// MulRaw multiplies by a plain integer (no scaling involved), saturating on
+// overflow.
+func (d Dec) MulRaw(n int64) Dec {
+	neg := (d.i < 0) != (n < 0)
+	hi, lo := bits.Mul64(uabs(d.i), uabs(n))
+	if hi != 0 {
+		return saturate(neg)
+	}
+	v, ok := signed(lo, neg)
+	if !ok || v == math.MinInt64 {
+		return saturate(neg)
+	}
+	return Dec{i: v}
+}
 
 // Float64 returns an approximate float representation. Use only for charts,
 // logging, or other display — never for settlement math.

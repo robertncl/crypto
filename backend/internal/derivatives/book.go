@@ -31,6 +31,21 @@ type restingOrder struct {
 
 func (o *restingOrder) isMarket() bool { return o.typ == models.TypeMarket }
 
+// orderSnapshot captures the fill state settle() mutates before a commit.
+type orderSnapshot struct {
+	lockedMargin num.Dec
+	mo           models.PerpOrder
+}
+
+func (o *restingOrder) snapshot() orderSnapshot {
+	return orderSnapshot{lockedMargin: o.lockedMargin, mo: *o.mo}
+}
+
+func (o *restingOrder) restore(s orderSnapshot) {
+	o.lockedMargin = s.lockedMargin
+	*o.mo = s.mo
+}
+
 type priceLevel struct {
 	price  num.Dec
 	orders *list.List // of *restingOrder

@@ -39,6 +39,21 @@ type restingOrder struct {
 
 func (o *restingOrder) isMarket() bool { return o.typ == models.TypeMarket }
 
+// orderSnapshot captures the mutable fill state of a restingOrder.
+type orderSnapshot struct {
+	remaining, budget, locked num.Dec
+	mo                        models.Order
+}
+
+func (o *restingOrder) snapshot() orderSnapshot {
+	return orderSnapshot{remaining: o.remaining, budget: o.budget, locked: o.locked, mo: *o.mo}
+}
+
+func (o *restingOrder) restore(s orderSnapshot) {
+	o.remaining, o.budget, o.locked = s.remaining, s.budget, s.locked
+	*o.mo = s.mo
+}
+
 // priceLevel is a FIFO queue of orders sharing a price (time priority).
 type priceLevel struct {
 	price  num.Dec

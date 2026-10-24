@@ -97,10 +97,17 @@ func main() {
 	}
 
 	srv := api.NewServer(cfg, st, authMgr, mgr, perpMgr, md, walletSvc, earnSvc, hub)
+	// Bound every phase of a connection so slow or idle clients cannot pin
+	// goroutines and sockets (slowloris). WebSocket upgrades clear these
+	// deadlines on hijack and manage their own ping/pong timeouts.
 	httpServer := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           srv.Router,
 		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    64 << 10,
 	}
 
 	go func() {
