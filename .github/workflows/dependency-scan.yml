@@ -28,7 +28,7 @@ jobs:
           cache-dependency-path: backend/go.sum
 
       - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.9.0 # pinned; bump deliberately
 
       # govulncheck reports only vulnerabilities actually reachable from the
       # code, so failing the build on a finding is high-signal.
