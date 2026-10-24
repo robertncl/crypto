@@ -27,7 +27,7 @@ RUN npm run build   # emits /web/dist (tsc --noEmit && vite build)
 # Stage 2 — build the binary #
 ##############################
 FROM cgr.dev/chainguard/go:latest-dev@sha256:ffa820c813d3a6c88458f51619ef8a4f26bb3e4a16d71acdd2472eed7a051b4e AS build
-# go1.27.2 — also fixes net/http CVE-2026-78667 and GO-2026-6611..6617 (stdlib) found in 1.27.1
+# go1.27.3 (via GOTOOLCHAIN=auto from go.mod) — fixes GO-2026-6809 (crypto/x509) found in 1.27.2
 USER root
 WORKDIR /src
 # Honor the toolchain pinned in go.mod even if the base ships a different Go.
@@ -47,7 +47,7 @@ RUN mkdir -p /out/data
 # Stage 3 — runtime image  #
 ############################
 # Chainguard static: distroless-equivalent, nonroot (uid 65532), with CA certs.
-FROM cgr.dev/chainguard/static:latest@sha256:60582b2ae6074f641094af0f370d4ab241aab271858a66223dcde7eee9f51638
+FROM cgr.dev/chainguard/static:latest@sha256:c12f0107f8afb0bbc1b0eff96ff8675e85a10c6083d039b777c51fef5c27420f
 WORKDIR /app
 COPY --from=build /out/nebula /app/nebula
 COPY --from=build --chown=65532:65532 /out/data /data
