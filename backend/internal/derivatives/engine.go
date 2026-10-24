@@ -9,6 +9,7 @@ package derivatives
 import (
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"time"
 
@@ -134,7 +135,11 @@ func (e *Engine) place(o *models.PerpOrder) (*models.PerpOrder, error) {
 	if err != nil {
 		return nil, err
 	}
-	if estPrice.Mul(o.Quantity).Lt(e.mkt.MinNotional) {
+	notional, ok := estPrice.MulChecked(o.Quantity)
+	if !ok {
+		return nil, fmt.Errorf("%w: order value too large", ErrBadOrder)
+	}
+	if notional.Lt(e.mkt.MinNotional) {
 		return nil, fmt.Errorf("%w: notional below minimum %s", ErrBadOrder, e.mkt.MinNotional)
 	}
 
@@ -154,11 +159,16 @@ func (e *Engine) place(o *models.PerpOrder) (*models.PerpOrder, error) {
 	}
 
 	affected := map[int64]bool{o.UserID: true}
-	if err := e.match(taker, now, affected); err != nil {
-		return nil, err
+	matchErr := e.match(taker, now, affected)
+	if matchErr != nil {
+		// Unexpected settlement failure: the failed fill was rolled back, fills
+		// before it stand. Close the order (never rest a possibly-crossing
+		// remainder) and release its leftover margin so nothing is stranded.
+		log.Printf("ERROR perp engine %s: order %s closed after settlement failure (filled %s): %v",
+			e.mkt.Symbol, o.ID, o.Filled, matchErr)
 	}
 
-	rest := o.Type == models.TypeLimit && taker.remaining.Sign() > 0 && !e.reduceExhausted(taker)
+	rest := matchErr == nil && o.Type == models.TypeLimit && taker.remaining.Sign() > 0 && !e.reduceExhausted(taker)
 	if rest {
 		o.Status = statusFor(o)
 		o.UpdatedAt = time.Now().Unix()
@@ -166,7 +176,7 @@ func (e *Engine) place(o *models.PerpOrder) (*models.PerpOrder, error) {
 		_ = e.st.UpdatePerpOrder(o)
 	} else {
 		e.unlockLeftover(taker, time.Now().Unix())
-		if o.Filled.Sign() > 0 {
+		if o.Filled.Sign() > 0 && matchErr == nil {
 			o.Status = models.StatusFilled
 		} else {
 			o.Status = models.StatusCanceled
@@ -179,6 +189,9 @@ func (e *Engine) place(o *models.PerpOrder) (*models.PerpOrder, error) {
 	e.publishPositions(affected)
 	e.publishBalances(affected)
 	e.publishDepth()
+	if matchErr != nil {
+		return nil, matchErr
+	}
 	return o, nil
 }
 
@@ -314,6 +327,9 @@ func (e *Engine) executeFill(taker, maker *restingOrder, qty, price num.Dec, now
 	quote := price.Mul(qty)
 	takerPos := e.copyPos(taker.userID)
 	makerPos := e.copyPos(maker.userID)
+	// settle() updates the orders and their locked margin ahead of the commit;
+	// snapshot them so a failed commit leaves the book matching the database.
+	takerSnap, makerSnap := taker.snapshot(), maker.snapshot()
 
 	var postings []store.Posting
 	postings = append(postings, e.settle(taker, takerPos, price, qty, e.mkt.TakerFee, now)...)
@@ -332,6 +348,8 @@ func (e *Engine) executeFill(taker, maker *restingOrder, qty, price num.Dec, now
 
 	txnID := "perpfill:" + uuid.NewString()
 	if err := e.st.CommitPerp(txnID, now, postings, trade, []*models.Position{takerPos, makerPos}, []*models.PerpOrder{taker.mo, maker.mo}); err != nil {
+		taker.restore(takerSnap)
+		maker.restore(makerSnap)
 		return fmt.Errorf("commit perp fill: %w", err)
 	}
 
