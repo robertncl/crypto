@@ -35,21 +35,27 @@ import (
 const maxBodyBytes int64 = 64 << 10 // 64 KiB
 
 type Server struct {
-	cfg    config.Config
-	st     *store.Store
-	auth   *auth.Manager
-	mgr    *engine.Manager
-	perp   *derivatives.Manager
-	md     *market.Service
-	wallet *wallet.Service
-	earn   *earn.Service
-	hub    *ws.Hub
-	Router http.Handler
+	cfg     config.Config
+	origins []string // browser origins allowed for CORS and the WebSocket handshake
+	st      *store.Store
+	auth    *auth.Manager
+	mgr     *engine.Manager
+	perp    *derivatives.Manager
+	md      *market.Service
+	wallet  *wallet.Service
+	earn    *earn.Service
+	hub     *ws.Hub
+	Router  http.Handler
 }
 
 func NewServer(cfg config.Config, st *store.Store, am *auth.Manager, mgr *engine.Manager,
 	perp *derivatives.Manager, md *market.Service, wal *wallet.Service, ern *earn.Service, hub *ws.Hub) *Server {
 	s := &Server{cfg: cfg, st: st, auth: am, mgr: mgr, perp: perp, md: md, wallet: wal, earn: ern, hub: hub}
+	// The Vite dev-server origins are trusted only in dev mode.
+	s.origins = []string{cfg.CORSOrigin}
+	if cfg.Dev {
+		s.origins = append(s.origins, "http://localhost:5173", "http://127.0.0.1:5173")
+	}
 	s.Router = s.routes()
 	return s
 }
@@ -60,7 +66,7 @@ func (s *Server) routes() http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(securityHeaders)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{s.cfg.CORSOrigin, "http://localhost:5173", "http://127.0.0.1:5173"},
+		AllowedOrigins:   s.origins,
 		AllowedMethods:   []string{"GET", "POST", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type"},
 		AllowCredentials: false,
@@ -68,6 +74,7 @@ func (s *Server) routes() http.Handler {
 	}))
 
 	r.Route("/api", func(r chi.Router) {
+		r.Use(noStore)                              // balances/orders must not sit in shared caches
 		r.Use(maxBody(maxBodyBytes))                // bound request bodies (DoS)
 		r.Use(httprate.LimitByIP(600, time.Minute)) // generous per-IP API ceiling
 
@@ -129,7 +136,9 @@ func (s *Server) routes() http.Handler {
 		})
 	})
 
-	r.Get("/ws", s.handleWS)
+	// WebSocket connections are long-lived, so a modest per-IP rate on new
+	// handshakes is plenty for reconnects but stops connection floods.
+	r.With(httprate.LimitByIP(30, time.Minute)).Get("/ws", s.handleWS)
 	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) { writeJSON(w, 200, map[string]string{"status": "ok"}) })
 
 	s.mountStatic(r)
@@ -193,6 +202,15 @@ func securityHeaders(next http.Handler) http.Handler {
 		h.Set("Content-Security-Policy", contentSecurityPolicy)
 		// Honored only over HTTPS (ignored on plain HTTP), so safe to always set.
 		h.Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+		next.ServeHTTP(w, r)
+	})
+}
+
+// noStore marks API responses uncacheable. They carry per-user data (balances,
+// orders, deposit addresses) that must never be stored by a browser or proxy.
+func noStore(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
 		next.ServeHTTP(w, r)
 	})
 }
