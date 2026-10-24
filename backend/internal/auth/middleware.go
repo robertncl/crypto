@@ -33,14 +33,16 @@ func (m *Manager) Middleware(next http.Handler) http.Handler {
 	})
 }
 
+// bearer extracts the token from the Authorization header. Tokens in the query
+// string are deliberately not accepted for REST: URLs end up in access logs,
+// proxies and browser history. (The WebSocket handshake, where browsers cannot
+// set headers, parses its own ?token= in the api package.)
 func bearer(r *http.Request) string {
 	h := r.Header.Get("Authorization")
 	if strings.HasPrefix(strings.ToLower(h), "bearer ") {
 		return strings.TrimSpace(h[7:])
 	}
-	// Allow token via query param for the WebSocket handshake, where custom
-	// headers are awkward to set from the browser.
-	return r.URL.Query().Get("token")
+	return ""
 }
 
 // UserID extracts the authenticated user id from the context (0 if absent).

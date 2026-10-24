@@ -60,6 +60,11 @@ func (s *Store) GetUserByID(id int64) (*models.User, error) {
 	return scanUser(row)
 }
 
+func (s *Store) SetPasswordHash(userID int64, hash string) error {
+	_, err := s.db.Exec(`UPDATE users SET password_hash=? WHERE id=?`, hash, userID)
+	return err
+}
+
 func (s *Store) SetKYCStatus(userID int64, status string) error {
 	_, err := s.db.Exec(`UPDATE users SET kyc_status=? WHERE id=?`, status, userID)
 	return err

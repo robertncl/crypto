@@ -86,7 +86,7 @@ func TestManagerIssueAndParse(t *testing.T) {
 
 func TestManagerIssueMultipleRoles(t *testing.T) {
 	m := NewManager("test_secret", 24)
-	roles := []string{"admin", "user", "bot"}
+	roles := []string{"admin", "user"} // bot-role tokens are refused (TestParseRejectsBotRole)
 
 	for _, role := range roles {
 		token, err := m.Issue(999, role)

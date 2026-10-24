@@ -32,12 +32,12 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	c.Email = strings.ToLower(strings.TrimSpace(c.Email))
-	if !strings.Contains(c.Email, "@") || len(c.Email) < 3 {
+	if !strings.Contains(c.Email, "@") || len(c.Email) < 3 || len(c.Email) > 254 { // RFC 5321 path limit
 		writeErr(w, http.StatusBadRequest, "a valid email is required")
 		return
 	}
-	if len(c.Password) < 6 {
-		writeErr(w, http.StatusBadRequest, "password must be at least 6 characters")
+	if len(c.Password) < auth.MinPasswordLen || len(c.Password) > auth.MaxPasswordLen {
+		writeErr(w, http.StatusBadRequest, "password must be 8 to 72 characters")
 		return
 	}
 	if _, err := s.st.GetUserByEmail(c.Email); err == nil {
@@ -70,7 +70,14 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 	c.Email = strings.ToLower(strings.TrimSpace(c.Email))
 	user, err := s.st.GetUserByEmail(c.Email)
-	if err != nil || !auth.CheckPassword(user.PasswordHash, c.Password) {
+	if err != nil || len(c.Password) > auth.MaxPasswordLen {
+		auth.SpendPasswordCheck(c.Password) // unknown email costs the same as a wrong password
+		writeErr(w, http.StatusUnauthorized, "invalid email or password")
+		return
+	}
+	// Service accounts (the market-maker bot) are funded and KYC-verified and
+	// never sign in interactively, so refuse them even with a correct password.
+	if !auth.CheckPassword(user.PasswordHash, c.Password) || user.Role == models.RoleBot {
 		writeErr(w, http.StatusUnauthorized, "invalid email or password")
 		return
 	}

@@ -15,6 +15,10 @@ type User struct {
 	CreatedAt    int64  `json:"createdAt"`
 }
 
+// RoleBot marks internal service accounts (the seed market maker). They cannot
+// sign in through the API.
+const RoleBot = "bot"
+
 // Asset is a tradable/holdable currency (crypto or fiat).
 type Asset struct {
 	Symbol        string  `json:"symbol"`

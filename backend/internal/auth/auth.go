@@ -6,11 +6,38 @@ import (
 	"strconv"
 	"time"
 
+	"cryptoex/internal/models"
+
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
 )
 
 var ErrInvalidToken = errors.New("invalid token")
+
+// MinPasswordLen and MaxPasswordLen bound accepted passwords. bcrypt only uses
+// the first 72 bytes (and rejects longer input), so longer passwords are
+// refused up front rather than failing or being silently truncated.
+const (
+	MinPasswordLen = 8
+	MaxPasswordLen = 72
+)
+
+// dummyHash is a bcrypt hash (DefaultCost) of a discarded random secret. It is
+// a constant rather than computed at runtime so the first unknown-email login
+// is not slower than later ones, and so it can never be silently empty (a
+// compare against an empty hash returns instantly).
+var dummyHash = []byte("$2a$10$tPqNuQwUMDT2IwqAwUHBVuKvCuLxDmT5wWtGPJAZ2IWNhdyrfwLou")
+
+// SpendPasswordCheck runs a bcrypt comparison against a dummy hash and discards
+// the result. Login calls it when no account matches, so a miss costs the same
+// time as a wrong password and response timing does not reveal which emails
+// are registered.
+func SpendPasswordCheck(pw string) {
+	if len(pw) > MaxPasswordLen {
+		pw = pw[:MaxPasswordLen]
+	}
+	_ = bcrypt.CompareHashAndPassword(dummyHash, []byte(pw))
+}
 
 // HashPassword returns a bcrypt hash of the plaintext password.
 func HashPassword(pw string) (string, error) {
@@ -55,6 +82,8 @@ func (m *Manager) Issue(userID int64, role string) (string, error) {
 }
 
 // Parse validates a token's signature and expiry and returns the user id and role.
+// Only HS256 (the algorithm Issue uses) is accepted, and a token without an
+// expiry is rejected rather than treated as never-expiring.
 func (m *Manager) Parse(tokenStr string) (userID int64, role string, err error) {
 	claims := &Claims{}
 	tok, err := jwt.ParseWithClaims(tokenStr, claims, func(t *jwt.Token) (any, error) {
@@ -62,12 +91,19 @@ func (m *Manager) Parse(tokenStr string) (userID int64, role string, err error) 
 			return nil, ErrInvalidToken
 		}
 		return m.secret, nil
-	})
+	}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithExpirationRequired())
 	if err != nil || !tok.Valid {
 		return 0, "", ErrInvalidToken
 	}
 	id, err := strconv.ParseInt(claims.Subject, 10, 64)
 	if err != nil {
+		return 0, "", ErrInvalidToken
+	}
+	// Service accounts (the market-maker bot) drive the engines in-process and
+	// never hold API sessions. Refusing their tokens here — for REST and the
+	// WebSocket alike — also invalidates any bot token issued before bot login
+	// was disabled (older builds used a guessable bot password).
+	if claims.Role == models.RoleBot {
 		return 0, "", ErrInvalidToken
 	}
 	return id, claims.Role, nil
