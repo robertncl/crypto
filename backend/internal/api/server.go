@@ -8,7 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
+	"path"
 	"strconv"
 	"strings"
 	"time"
@@ -148,31 +148,42 @@ func (s *Server) routes() http.Handler {
 // mountStatic serves the built SPA from ./web/dist when present, with history
 // API fallback so client-side routes resolve to index.html. In dev the SPA runs
 // under Vite, so a missing dist directory is fine.
+//
+// All file access goes through an os.Root opened on the dist directory, so a
+// request path can never resolve outside it — not via "..", absolute paths, or
+// a symlink inside dist pointing elsewhere.
 func (s *Server) mountStatic(r chi.Router) {
-	dist := s.cfg.WebDir
-	if dist == "" {
+	if s.cfg.WebDir == "" {
 		return
 	}
-	if _, err := os.Stat(filepath.Join(dist, "index.html")); err != nil {
+	root, err := os.OpenRoot(s.cfg.WebDir)
+	if err != nil {
 		return
 	}
-	fs := http.FileServer(http.Dir(dist))
+	if _, err := root.Stat("index.html"); err != nil {
+		_ = root.Close()
+		return
+	}
+	files := http.FileServerFS(root.FS())
 	serve := func(w http.ResponseWriter, req *http.Request) {
-		path := filepath.Join(dist, filepath.Clean(req.URL.Path))
-		if info, err := os.Stat(path); err == nil && !info.IsDir() {
-			// Vite emits content-hashed files under /assets, so they're safe to
-			// cache forever; everything else (and the HTML shell) must revalidate
-			// so a new deploy's asset references are picked up immediately.
-			if strings.HasPrefix(req.URL.Path, "/assets/") {
-				w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-			} else {
-				w.Header().Set("Cache-Control", "no-cache")
+		// Rooted clean, then relative: "/a/../../b" -> "b", "/" -> ".".
+		name := strings.TrimPrefix(path.Clean("/"+req.URL.Path), "/")
+		if name != "" {
+			if info, err := root.Stat(name); err == nil && !info.IsDir() {
+				// Vite emits content-hashed files under /assets, so they're safe to
+				// cache forever; everything else (and the HTML shell) must revalidate
+				// so a new deploy's asset references are picked up immediately.
+				if strings.HasPrefix(name, "assets/") {
+					w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+				} else {
+					w.Header().Set("Cache-Control", "no-cache")
+				}
+				files.ServeHTTP(w, req)
+				return
 			}
-			fs.ServeHTTP(w, req)
-			return
 		}
 		w.Header().Set("Cache-Control", "no-cache")
-		http.ServeFile(w, req, filepath.Join(dist, "index.html"))
+		http.ServeFileFS(w, req, root.FS(), "index.html")
 	}
 	r.Get("/*", serve)
 	r.Head("/*", serve) // CDNs / health checks may probe with HEAD
