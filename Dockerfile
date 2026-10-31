@@ -14,7 +14,7 @@
 # Stage 1 — build the SPA  #
 ############################
 # -dev variant includes a shell + npm for the build; it is discarded.
-FROM cgr.dev/chainguard/node:latest-dev@sha256:13afe2c05d49286578b74c4a14b8e4bbe70e98828abeb3d0ea9f9fd2af4cc431 AS web
+FROM cgr.dev/chainguard/node:latest-dev@sha256:56fb738564e8423e1d3268cfb300200f306cfb2eecc38867a453713c7aa0ff0e AS web
 USER root
 WORKDIR /web
 # Install deps first against the lockfile for reproducible, cacheable builds.
@@ -26,7 +26,7 @@ RUN npm run build   # emits /web/dist (tsc --noEmit && vite build)
 ##############################
 # Stage 2 — build the binary #
 ##############################
-FROM cgr.dev/chainguard/go:latest-dev@sha256:6935d7096121c0a0ce4c26192c40bc7ed4ae9076d2567e6d46d6c32817934aff AS build
+FROM cgr.dev/chainguard/go:latest-dev@sha256:fa1d854fc7e1c0395ed5a8aaf746ba6c941d7a1c1cedac63479fc98bea599934 AS build
 # go1.27.3 (via GOTOOLCHAIN=auto from go.mod) — fixes GO-2026-6809 (crypto/x509) found in 1.27.2
 USER root
 WORKDIR /src
@@ -47,7 +47,7 @@ RUN mkdir -p /out/data
 # Stage 3 — runtime image  #
 ############################
 # Chainguard static: distroless-equivalent, nonroot (uid 65532), with CA certs.
-FROM cgr.dev/chainguard/static:latest@sha256:c12f0107f8afb0bbc1b0eff96ff8675e85a10c6083d039b777c51fef5c27420f
+FROM cgr.dev/chainguard/static:latest@sha256:fc42af33e643f20d08baf03cddcc1c02ba57052dfb02edb0d79f3fc47bcea8d9
 WORKDIR /app
 COPY --from=build /out/nebula /app/nebula
 COPY --from=build --chown=65532:65532 /out/data /data
