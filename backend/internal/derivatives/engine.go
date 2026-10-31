@@ -525,16 +525,37 @@ func (e *Engine) applyFunding(rate, mark num.Dec) {
 		if pos.Side == models.Short {
 			userDelta = payment
 		}
+		txnID := "funding:" + e.mkt.Symbol + ":" + strconv.FormatInt(pos.UserID, 10) + ":" + strconv.FormatInt(now, 10)
 		p := *pos
 		p.FundingPaid = p.FundingPaid.Add(userDelta.Neg())
 		p.UpdatedAt = now
-		err := e.st.CommitPerp("funding:"+e.mkt.Symbol+":"+strconv.FormatInt(pos.UserID, 10)+":"+strconv.FormatInt(now, 10), now,
+		err := e.st.CommitPerp(txnID, now,
 			[]store.Posting{
 				{UserID: pos.UserID, Asset: settle, DeltaAvailable: userDelta, Reason: "funding", Ref: e.mkt.Symbol},
 				{UserID: store.InsuranceFundID, Asset: settle, DeltaAvailable: userDelta.Neg(), Reason: "funding", Ref: e.mkt.Symbol},
 			}, nil, []*models.Position{&p}, nil)
+		if err != nil && userDelta.Sign() < 0 && errors.Is(err, store.ErrInsufficientFunds) {
+			// The payer has no free balance to cover it. Skipping the payment
+			// would let a trader dodge funding indefinitely by keeping their
+			// available balance empty (e.g. parked in a resting order) while
+			// still receiving it when the rate flips. Settle it from the
+			// position's isolated margin instead; if that exhausts the margin,
+			// the liquidation check closes the position.
+			owed := userDelta.Neg()
+			fromMargin := num.Min(owed, pos.Margin)
+			p = *pos
+			p.Margin = p.Margin.Sub(fromMargin)
+			p.FundingPaid = p.FundingPaid.Add(fromMargin)
+			p.UpdatedAt = now
+			err = e.st.CommitPerp(txnID, now,
+				[]store.Posting{
+					{UserID: pos.UserID, Asset: settle, DeltaLocked: fromMargin.Neg(), Reason: "funding_from_margin", Ref: e.mkt.Symbol},
+					{UserID: store.InsuranceFundID, Asset: settle, DeltaAvailable: fromMargin, Reason: "funding", Ref: e.mkt.Symbol},
+				}, nil, []*models.Position{&p}, nil)
+		}
 		if err != nil {
-			continue // best effort: skip if the payer lacks free balance
+			log.Printf("ERROR perp engine %s: funding for user %d not settled: %v", e.mkt.Symbol, pos.UserID, err)
+			continue
 		}
 		e.storePos(&p)
 		e.publishPosition(&p)

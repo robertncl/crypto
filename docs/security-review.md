@@ -95,12 +95,21 @@ simulated-deposit behavior, but most must be fixed before any real deployment.
 
 Also from the pass-2 review: the login timing equalizer now uses a constant bcrypt hash (no runtime generation, so it can never be empty and the first miss isn't slower), and an order closed by a mid-match settlement failure is logged at `ERROR` with its filled amount.
 
+### Hardening pass 4 (2026-10-31)
+
+| ID | Severity | Status | Finding & fix |
+|----|----------|--------|---------------|
+| F21 | Medium | ✅ Fixed | **Perp funding could be evaded.** `applyFunding` charged funding to the *available* balance only, and a payment that failed for lack of free balance was skipped ("best effort"). A trader could keep available at zero, for instance by parking it in a far-away resting order, and never pay funding while still receiving it when the rate flipped. Verified on `master`: a 1 BTC long owing 25 USDT paid 0. **Fix:** when free balance can't cover it, the payment comes out of the position's isolated margin (`funding_from_margin`), and the liquidation check closes the position if that exhausts it. A funding payment that still can't settle is logged at `ERROR`. |
+| F22 | Low | ✅ Fixed | **SPA file server followed symlinks out of `web/dist`** (also CodeQL alert `go/path-injection`, open since 2026-05-31). `..` traversal was already blocked by the rooted `filepath.Clean`, but `http.Dir` follows symlinks, so a symlink inside the build output served a file from outside it (verified). It takes a compromised or mis-built artifact to exploit. **Fix:** every lookup goes through an `os.Root` opened on the dist directory, so requests cannot resolve outside it by any route. |
+| F23 | Info | ⬜ Open | **Mark price is the last perp trade.** Liquidations and funding read `ticker.Last`, so anyone willing to sweep the thin perp book can print an extreme trade and liquidate other traders' positions at it. It costs the attacker the sweep and has no direct payoff, but production needs an index-based fair mark price and auto-deleveraging. |
+
 Informational: `govulncheck` reports GO-2026-5932 (`golang.org/x/crypto/openpgp` is unmaintained). Nebula does not import that package and no fixed version exists.
 
 Regression tests: `engine/engine_safety_test.go`, `derivatives/engine_safety_test.go`,
 `num/overflow_test.go`, `api/hardening_test.go`, `auth/parse_hardening_test.go`,
 `earn/interest_overflow_test.go`, `store/earn_test.go` (`TestRedeemEarnRejectsStaleAccrual`),
-`wallet/wallet_test.go` (`TestValidAddress`).
+`wallet/wallet_test.go` (`TestValidAddress`), `derivatives/funding_evasion_test.go`,
+`api/static_test.go`.
 
 > **Prod note:** the in-app limiter keys by remote IP (`httprate.LimitByIP`). Behind
 > a load balancer, switch to `httprate.KeyByRealIP` (trusting `X-Forwarded-For`
