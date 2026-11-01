@@ -24,6 +24,7 @@ help:
 	@echo "  make build        Build the SPA and a single self-contained ./nebula binary"
 	@echo "  make run          Run the built ./nebula binary (serves everything on :8080)"
 	@echo "  make test         Run backend tests"
+	@echo "  make check-age    List dependency updates that cleared the 24h cooloff (read-only)"
 	@echo "  make clean        Remove build artifacts and the local database"
 	@echo ""
 	@echo "  backend/run use local dev mode by default. To run the secured path:"
@@ -63,6 +64,14 @@ run:
 .PHONY: test
 test:
 	cd backend && $(GO) test ./...
+
+# Report dependency updates (Go, npm, Actions, images) that are at least
+# COOLOFF old. Read-only; it prints the commands to apply them. Needs network,
+# plus gh (Actions) and docker (images); missing tools skip their section.
+COOLOFF ?= 24h
+.PHONY: check-age
+check-age:
+	cd backend && $(GO) run ./cmd/check-age -root .. -cooloff $(COOLOFF)
 
 .PHONY: clean
 clean:

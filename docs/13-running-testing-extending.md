@@ -148,6 +148,42 @@ KYC/AML; isolated margin only; an insurance fund without ADL. Each chapter's "In
 the real world" callouts mark these seams. Knowing **where the simplifications
 are** is itself a senior skill — you now have that map.
 
+## 13.6 Updating dependencies safely
+
+An exchange's dependencies are part of its attack surface: a malicious or
+broken release of a library you pull in runs with the same access to user funds
+as your own code. Nebula's rule is a **24-hour cooloff**: a new release isn't
+adopted until it has been public for a day, which is usually long enough for a
+compromised version to be noticed and pulled.
+
+`make check-age` applies that rule to everything the repo pins: the Go
+toolchain and modules, npm packages (including transitive lockfile updates),
+SHA-pinned GitHub Actions, and digest-pinned base images. It changes nothing.
+For each dependency it prints a status, and at the end the commands that apply
+the updates.
+
+| Status | Meaning |
+|--------|---------|
+| `UPDATE` | A newer release has cleared the cooloff. |
+| `HELD` | A newer release exists but is too new; re-run later. |
+| `OK` | Already on the newest eligible version. |
+| `INFO` / `SKIP` | Not pinned, or the check couldn't run (e.g. `gh` or `docker` missing). |
+
+It also encodes the rules a dependency update would otherwise rely on someone
+remembering:
+
+- **Major bumps are never proposed**, only reported, because they need human
+  review. That includes a new Go minor line such as 1.28, which is a language
+  version.
+- **`modernc.org/libc` follows `modernc.org/sqlite`.** The SQLite driver must
+  use the exact `libc` version in its own `go.mod`, so `libc` is pinned to that
+  requirement rather than to its own latest release.
+- **A pinned Action SHA must match its `# vX.Y.Z` comment**, otherwise a
+  warning is printed. The comment is only a label; the SHA is what runs.
+
+Use `COOLOFF=48h make check-age` for a longer window. The tool lives in
+`backend/cmd/check-age` and its decision logic is unit-tested.
+
 ---
 
 ## Key takeaways
@@ -158,6 +194,8 @@ are** is itself a senior skill — you now have that map.
   math (precision, settlement, liquidation) — read them as worked examples.
 - The system **rebuilds engine state from the DB on startup**; everything is
   wired in `main.go`.
+- Update dependencies with `make check-age`: only releases that have cleared
+  the 24h cooloff are proposed.
 - Extend it: start by **adding a market or a fee tweak**, graduate to **stop
   orders or cross margin**, and — for the real challenge — **testnet custody**.
 
