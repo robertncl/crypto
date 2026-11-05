@@ -14,7 +14,7 @@
 # Stage 1 — build the SPA  #
 ############################
 # -dev variant includes a shell + npm for the build; it is discarded.
-FROM cgr.dev/chainguard/node:latest-dev@sha256:56fb738564e8423e1d3268cfb300200f306cfb2eecc38867a453713c7aa0ff0e AS web
+FROM cgr.dev/chainguard/node:latest-dev@sha256:d0db506a46ecf9fca69413576d9621988d1e879956e8f9241c87d7fb5a200a68 AS web
 USER root
 WORKDIR /web
 # Install deps first against the lockfile for reproducible, cacheable builds.
@@ -26,7 +26,7 @@ RUN npm run build   # emits /web/dist (tsc --noEmit && vite build)
 ##############################
 # Stage 2 — build the binary #
 ##############################
-FROM cgr.dev/chainguard/go:latest-dev@sha256:fa1d854fc7e1c0395ed5a8aaf746ba6c941d7a1c1cedac63479fc98bea599934 AS build
+FROM cgr.dev/chainguard/go:latest-dev@sha256:4cddd14c56499968f74ba6156a3c1120dbd6a5e2d8b14fe539a36e3f79b71bf3 AS build
 # go1.27.3 (via GOTOOLCHAIN=auto from go.mod) — fixes GO-2026-6809 (crypto/x509) found in 1.27.2
 USER root
 WORKDIR /src
